@@ -10,6 +10,17 @@ import { billingRouter, handleStripeWebhook } from './routes/billing.js';
 
 const app = express();
 
+// Vercel mounts this service under a route prefix (vercel.json ->
+// experimentalServices.backend.routePrefix). Depending on how the platform
+// forwards requests the prefix may be present in req.url; locally it is absent.
+// Strip it up-front so every route below matches whether or not it's there.
+const SERVICE_PREFIX = '/_/backend';
+app.use((req, _res, next) => {
+  if (req.url === SERVICE_PREFIX) req.url = '/';
+  else if (req.url.startsWith(`${SERVICE_PREFIX}/`)) req.url = req.url.slice(SERVICE_PREFIX.length);
+  next();
+});
+
 app.use(cors({ origin: config.FRONTEND_URL, credentials: true }));
 
 // Stripe webhook needs the raw body for signature verification, so it must be

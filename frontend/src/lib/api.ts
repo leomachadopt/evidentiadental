@@ -1,4 +1,8 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// In production the backend is served under the Vercel service prefix
+// (see vercel.json -> experimentalServices.backend.routePrefix). Locally it
+// runs standalone on :3001. Override anytime with VITE_API_URL.
+const API_URL =
+  import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '/_/backend' : 'http://localhost:3001');
 
 function getToken(): string | null {
   return localStorage.getItem('evidentia_token');
