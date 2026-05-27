@@ -1,0 +1,132 @@
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+function getToken(): string | null {
+  return localStorage.getItem('evidentia_token');
+}
+
+export function setToken(token: string) {
+  localStorage.setItem('evidentia_token', token);
+}
+
+export function clearToken() {
+  localStorage.removeItem('evidentia_token');
+}
+
+function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const token = getToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extra,
+  };
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: authHeaders(init.headers as Record<string, string> | undefined),
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+
+  if (!res.ok) {
+    throw new Error(data?.error?.message || data?.error || `HTTP ${res.status}`);
+  }
+  return data as T;
+}
+
+/** Fetch a file with auth and trigger a download (used for authenticated exports). */
+async function downloadFile(path: string, filename: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Fetch print-ready HTML with auth and open it in a new tab (Print → Save as PDF). */
+async function openInNewTab(path: string) {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank');
+}
+
+export const api = {
+  // Auth
+  register: (body: { email: string; password: string; name?: string; speciality?: string }) =>
+    request<{ token: string; user: any }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+  login: (body: { email: string; password: string }) =>
+    request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Searches
+  createSearch: (question: string) =>
+    request<{ search: any; pico: any }>('/api/searches', { method: 'POST', body: JSON.stringify({ question }) }),
+  executeSearch: (id: string, maxResults = 30) =>
+    request<{ resultsCount: number; trialsCount: number }>(`/api/searches/${id}/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ maxResults }),
+    }),
+  updateSearchPico: (id: string, pico: any) =>
+    request<any>(`/api/searches/${id}`, { method: 'PATCH', body: JSON.stringify({ pico }) }),
+  listSearches: () => request<{ searches: any[] }>('/api/searches'),
+  getSearch: (id: string) => request<{ search: any; results: any[] }>(`/api/searches/${id}`),
+
+  // Synthesis
+  generateSynthesis: (searchId: string, selectedPaperIds: string[]) =>
+    request<{
+      synthesisId: string;
+      synthesisMd: string;
+      evidenceStrength: string | null;
+      attempts: number;
+      finalValidation: { valid: boolean; errors: string[] };
+    }>(`/api/searches/${searchId}/synthesis`, { method: 'POST', body: JSON.stringify({ selectedPaperIds }) }),
+  getSynthesis: (searchId: string) => request<any>(`/api/searches/${searchId}/synthesis`),
+
+  // Exports
+  exportSynthesisMarkdown: (searchId: string) =>
+    downloadFile(`/api/searches/${searchId}/export/synthesis.md`, 'sintese.md'),
+  exportSynthesisPdf: (searchId: string) =>
+    openInNewTab(`/api/searches/${searchId}/export/synthesis.html`),
+
+  // Library
+  addToLibrary: (body: { paperId: string; folder?: string; tags?: string[]; note?: string }) =>
+    request<{ id: string }>('/api/library', { method: 'POST', body: JSON.stringify(body) }),
+  listLibrary: (params: { folder?: string; tag?: string } = {}) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ items: any[] }>(`/api/library${qs ? `?${qs}` : ''}`);
+  },
+  listFolders: () => request<{ folders: Array<{ folder: string; count: number }> }>('/api/library/folders'),
+  updateLibraryItem: (id: string, patch: { folder?: string; tags?: string[]; note?: string }) =>
+    request<{ ok: boolean }>(`/api/library/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  removeLibraryItem: (id: string) => request<{ ok: boolean }>(`/api/library/${id}`, { method: 'DELETE' }),
+
+  // Curated queries
+  listCurated: (area?: string) =>
+    request<{ queries: any[] }>(`/api/curated${area ? `?area=${encodeURIComponent(area)}` : ''}`),
+  listCuratedAreas: () => request<{ areas: Array<{ area: string; count: number }> }>('/api/curated/areas'),
+  instantiateCurated: (id: string) =>
+    request<{ searchId: string }>(`/api/curated/${id}/instantiate`, { method: 'POST' }),
+
+  // Billing
+  billingStatus: () =>
+    request<{
+      tier: string;
+      trialEndsAt: string | null;
+      trialExpired: boolean;
+      subscriptionStatus: string | null;
+      searchesToday: number;
+      synthesesToday: number;
+      dailyLimit: number | null; // Infinity (pro) serializes to null over JSON
+    }>('/api/billing/status'),
+  billingCheckout: (plan: 'clinical' | 'pro') =>
+    request<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) }),
+  billingPortal: () => request<{ url: string }>('/api/billing/portal', { method: 'POST' }),
+};

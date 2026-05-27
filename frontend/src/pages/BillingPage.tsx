@@ -1,0 +1,147 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Check, Loader2, Zap } from 'lucide-react';
+import { api } from '../lib/api';
+
+const PLANS = [
+  {
+    id: 'clinical' as const,
+    name: 'Clinical',
+    price: '19€',
+    period: '/mês',
+    features: ['50 buscas por dia', 'Mini-sínteses com citações validadas', 'Biblioteca pessoal', 'Exports Markdown + PDF'],
+  },
+  {
+    id: 'pro' as const,
+    name: 'Pro',
+    price: '49€',
+    period: '/mês',
+    features: ['Buscas ilimitadas', 'Tudo do Clinical', 'Bibliotecas curadas', 'Acesso prioritário a novas features'],
+    highlight: true,
+  },
+];
+
+export function BillingPage() {
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const params = new URLSearchParams(window.location.search);
+  const justSucceeded = params.get('success') === 'true';
+
+  const { data: status } = useQuery({
+    queryKey: ['billing-status'],
+    queryFn: () => api.billingStatus(),
+  });
+
+  async function checkout(plan: 'clinical' | 'pro') {
+    setError(null);
+    setLoadingPlan(plan);
+    try {
+      const { url } = await api.billingCheckout(plan);
+      window.location.href = url;
+    } catch (e: any) {
+      setError(e.message);
+      setLoadingPlan(null);
+    }
+  }
+
+  async function openPortal() {
+    setError(null);
+    try {
+      const { url } = await api.billingPortal();
+      window.location.href = url;
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  const tierLabel: Record<string, string> = { trial: 'Trial', clinical: 'Clinical', pro: 'Pro' };
+
+  return (
+    <div className="mx-auto max-w-3xl animate-fade-up">
+      <h1 className="mb-2 text-2xl font-semibold tracking-tight">A tua conta</h1>
+
+      {justSucceeded && (
+        <div className="card bg-green-50 border-green-200 mb-6 flex items-center gap-2 text-green-800 text-sm">
+          <Check className="h-5 w-5" /> Subscrição ativada. Obrigado!
+        </div>
+      )}
+
+      {status && (
+        <div className="card mb-8">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <div className="text-sm text-slate-500">Plano atual</div>
+              <div className="text-xl font-semibold">{tierLabel[status.tier] ?? status.tier}</div>
+              {status.tier === 'trial' && status.trialEndsAt && (
+                <div className={`text-xs mt-1 ${status.trialExpired ? 'text-red-600' : 'text-slate-500'}`}>
+                  {status.trialExpired
+                    ? 'Trial terminado'
+                    : `Trial até ${new Date(status.trialEndsAt).toLocaleDateString('pt-PT')}`}
+                </div>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-slate-500">Buscas hoje</div>
+              <div className="text-xl font-semibold">
+                {status.searchesToday}
+                <span className="text-slate-400 text-base"> / {status.dailyLimit === null || !isFinite(status.dailyLimit) ? '∞' : status.dailyLimit}</span>
+              </div>
+            </div>
+          </div>
+          {status.tier !== 'trial' && (
+            <button onClick={openPortal} className="btn-secondary text-xs mt-4">
+              Gerir subscrição
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && <div className="text-sm text-red-600 mb-4">{error}</div>}
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        {PLANS.map((plan) => (
+          <div
+            key={plan.id}
+            className={`card flex flex-col ${plan.highlight ? 'border-primary-400 ring-1 ring-primary-200' : ''}`}
+          >
+            {plan.highlight && (
+              <span className="self-start text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full mb-2 inline-flex items-center gap-1">
+                <Zap className="h-3 w-3" /> Popular
+              </span>
+            )}
+            <div className="text-lg font-semibold">{plan.name}</div>
+            <div className="mt-1 mb-4">
+              <span className="text-3xl font-bold">{plan.price}</span>
+              <span className="text-slate-500 text-sm">{plan.period}</span>
+            </div>
+            <ul className="space-y-2 text-sm text-slate-700 flex-1">
+              {plan.features.map((f) => (
+                <li key={f} className="flex items-start gap-2">
+                  <Check className="h-4 w-4 text-primary-600 mt-0.5 shrink-0" /> {f}
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => checkout(plan.id)}
+              disabled={loadingPlan !== null || status?.tier === plan.id}
+              className="btn-primary w-full mt-4"
+            >
+              {loadingPlan === plan.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : status?.tier === plan.id ? (
+                'Plano atual'
+              ) : (
+                `Subscrever ${plan.name}`
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-xs text-slate-400 mt-6 text-center">
+        Pagamento seguro via Stripe. Cancela quando quiseres.
+      </p>
+    </div>
+  );
+}
