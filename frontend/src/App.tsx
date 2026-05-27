@@ -4,6 +4,7 @@ import { Microscope, Menu, X, LogOut } from 'lucide-react';
 import { NewSearchPage } from './pages/NewSearchPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { LoginPage } from './pages/LoginPage';
+import { LandingPage } from './pages/LandingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { CuratedPage } from './pages/CuratedPage';
@@ -85,6 +86,13 @@ export default function App() {
               </button>
             </>
           )}
+
+          {!authed && location.pathname !== '/login' && (
+            <div className="flex items-center gap-2">
+              <Link to="/login" className="btn-ghost hidden sm:inline-flex">Entrar</Link>
+              <Link to="/login?mode=register" className="btn-primary">Começar grátis</Link>
+            </div>
+          )}
         </div>
 
         {authed && menuOpen && (
@@ -109,7 +117,7 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<ProtectedRoute><NewSearchPage /></ProtectedRoute>} />
+          <Route path="/" element={authed ? <NewSearchPage /> : <LandingPage />} />
           <Route path="/curated" element={<ProtectedRoute><CuratedPage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
