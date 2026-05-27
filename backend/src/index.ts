@@ -7,6 +7,8 @@ import { libraryRouter } from './routes/library.js';
 import { exportsRouter } from './routes/exports.js';
 import { curatedRouter } from './routes/curated.js';
 import { billingRouter, handleStripeWebhook } from './routes/billing.js';
+import { papersRouter } from './routes/papers.js';
+import { settingsRouter } from './routes/settings.js';
 
 const app = express();
 
@@ -37,6 +39,8 @@ app.use('/api/searches', exportsRouter); // /:id/export/* (distinct paths, no co
 app.use('/api/library', libraryRouter);
 app.use('/api/curated', curatedRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/papers', papersRouter);
+app.use('/api/settings', settingsRouter);
 
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

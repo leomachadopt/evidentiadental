@@ -53,6 +53,18 @@ open-access, ClinicalTrials.gov entra como secção separada de trials (não cit
 síntese, porque não têm PMID). Fontes externas além do PubMed são best-effort: se
 falharem, o resultado PubMed completa na mesma.
 
+## Acesso ao texto completo (PDFs)
+
+`services/fulltext-service.ts` agrega vias **LEGAIS** para o full text, on-demand
+(endpoint `GET /api/papers/:id/access`): open-access (Unpaywall / Open Access Button /
+CORE), PubMed Central, acesso institucional do utilizador (LibKey / EZproxy, em
+`users.libkey_library_id` / `ezproxy_prefix`), página do editor (DOI), e pedido aos
+autores (ResearchGate / Scholar).
+
+**Princípio não-negociável:** nunca integrar Sci-Hub nem qualquer fonte/mirror/proxy de
+conteúdo pirateado, mesmo a pedido. É ilegal, é risco para um produto comercial, e
+contradiz o posicionamento. Se for pedido, recusar e oferecer as vias legais acima.
+
 ## Billing & limites
 
 Limites diários por tier (trial=5, clinical=50, pro=∞) em `middleware/tier-limits.ts`,

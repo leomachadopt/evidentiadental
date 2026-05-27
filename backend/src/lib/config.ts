@@ -15,6 +15,7 @@ const schema = z.object({
   CLAUDE_MODEL: z.string().default('claude-sonnet-4-6'),
   CROSSREF_EMAIL: z.string().email(),
   UNPAYWALL_EMAIL: z.string().email(),
+  CORE_API_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_CLINICAL: z.string().optional(),

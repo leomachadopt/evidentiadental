@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Loader2, Zap } from 'lucide-react';
+import { Check, Loader2, Zap, Building2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 const PLANS = [
@@ -32,6 +32,30 @@ export function BillingPage() {
     queryKey: ['billing-status'],
     queryFn: () => api.billingStatus(),
   });
+
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: () => api.getSettings() });
+  const [libkey, setLibkey] = useState('');
+  const [ezproxy, setEzproxy] = useState('');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savedSettings, setSavedSettings] = useState(false);
+
+  useEffect(() => {
+    if (settings) {
+      setLibkey(settings.libkeyLibraryId ?? '');
+      setEzproxy(settings.ezproxyPrefix ?? '');
+    }
+  }, [settings]);
+
+  async function saveSettings() {
+    setSavingSettings(true);
+    setSavedSettings(false);
+    try {
+      await api.updateSettings({ libkeyLibraryId: libkey, ezproxyPrefix: ezproxy });
+      setSavedSettings(true);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
 
   async function checkout(plan: 'clinical' | 'pro') {
     setError(null);
@@ -142,6 +166,56 @@ export function BillingPage() {
       <p className="text-xs text-slate-400 mt-6 text-center">
         Pagamento seguro via Stripe. Cancela quando quiseres.
       </p>
+
+      {/* Institutional full-text access */}
+      <div className="card mt-8">
+        <div className="flex items-center gap-2">
+          <Building2 className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
+          <h2 className="text-lg font-semibold tracking-tight">Acesso institucional</h2>
+        </div>
+        <p className="mt-1 text-sm text-slate-500">
+          Para abrir artigos pagos através da tua faculdade/biblioteca, de forma legal. Opcional —
+          deixa em branco se não tiveres.
+        </p>
+
+        <div className="mt-5 space-y-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-slate-700">LibKey — Library ID</label>
+            <input
+              className="input-field"
+              value={libkey}
+              onChange={(e) => { setLibkey(e.target.value); setSavedSettings(false); }}
+              placeholder="ex: 1234"
+            />
+            <span className="text-xs text-slate-400">
+              O ID da tua instituição no LibKey (Third Iron). Gera links diretos para o PDF via a tua subscrição.
+            </span>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-slate-700">EZproxy — prefixo de login</label>
+            <input
+              className="input-field"
+              value={ezproxy}
+              onChange={(e) => { setEzproxy(e.target.value); setSavedSettings(false); }}
+              placeholder="https://login.ezproxy.tua-instituicao.pt/login?url="
+            />
+            <span className="text-xs text-slate-400">
+              Termina em <code className="rounded bg-slate-100 px-1">?url=</code>. Encaminhamos o DOI por aqui para acesso autenticado.
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <button onClick={saveSettings} disabled={savingSettings} className="btn-primary">
+            {savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+          </button>
+          {savedSettings && (
+            <span className="inline-flex items-center gap-1 text-sm text-emerald-600">
+              <Check className="h-4 w-4" /> Guardado
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

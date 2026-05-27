@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Unlock, Trash2, Folder } from 'lucide-react';
 import { api } from '../lib/api';
+import { FullTextAccess } from '../components/FullTextAccess';
 
 export function LibraryPage() {
   const queryClient = useQueryClient();
@@ -86,6 +87,7 @@ export function LibraryPage() {
                       )}
                       <span className="text-slate-400">{item.folder}</span>
                     </div>
+                    <FullTextAccess paperId={item.paper_id} />
                   </div>
                   <button
                     onClick={() => removeMutation.mutate(item.id)}

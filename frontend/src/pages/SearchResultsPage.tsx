@@ -17,6 +17,7 @@ import {
   Printer,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { FullTextAccess } from '../components/FullTextAccess';
 
 export function SearchResultsPage() {
   const { id } = useParams<{ id: string }>();
@@ -337,6 +338,7 @@ function PaperCard({
               )}
             </button>
           </div>
+          <FullTextAccess paperId={result.paper_id} />
         </div>
       </div>
     </div>

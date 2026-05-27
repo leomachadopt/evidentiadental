@@ -133,4 +133,20 @@ export const api = {
   billingCheckout: (plan: 'clinical' | 'pro') =>
     request<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) }),
   billingPortal: () => request<{ url: string }>('/api/billing/portal', { method: 'POST' }),
+
+  // Full-text access (legal routes aggregated on demand)
+  getPaperAccess: (paperId: string) =>
+    request<{
+      links: Array<{ label: string; url: string; kind: string; free: boolean; note?: string }>;
+      isOpenAccess: boolean;
+    }>(`/api/papers/${paperId}/access`),
+
+  // Institutional access settings
+  getSettings: () =>
+    request<{ libkeyLibraryId: string | null; ezproxyPrefix: string | null }>('/api/settings'),
+  updateSettings: (body: { libkeyLibraryId?: string | null; ezproxyPrefix?: string | null }) =>
+    request<{ libkeyLibraryId: string | null; ezproxyPrefix: string | null }>('/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
 };
