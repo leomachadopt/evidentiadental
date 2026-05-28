@@ -16,49 +16,31 @@ billingRouter.get('/status', async (req, res) => {
   res.json(status);
 });
 
-const PRICE_BY_PLAN: Record<string, string | undefined> = {
-  monthly: config.STRIPE_PRICE_MONTHLY,
-  annual: config.STRIPE_PRICE_ANNUAL,
+const LINK_BY_PLAN: Record<string, string | undefined> = {
+  monthly: config.STRIPE_LINK_MONTHLY,
+  annual: config.STRIPE_LINK_ANNUAL,
 };
 
-// POST /api/billing/checkout — start a Stripe Checkout subscription session
+// POST /api/billing/checkout — return the Stripe Payment Link for this plan,
+// tagged with client_reference_id so the webhook can map the payment back to
+// this user (Payment Links are static URLs, so we pass identity via the query).
 billingRouter.post('/checkout', async (req, res) => {
-  if (!stripe) return res.status(503).json({ error: 'Billing não configurado (STRIPE_SECRET_KEY em falta).' });
-
   const schema = z.object({ plan: z.enum(['monthly', 'annual']) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const price = PRICE_BY_PLAN[parsed.data.plan];
-  if (!price) return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado.` });
-
-  const userRes = await query<{ email: string; stripe_customer_id: string | null }>(
-    'SELECT email, stripe_customer_id FROM users WHERE id = $1',
-    [req.userId],
-  );
-  if (userRes.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
-  const user = userRes.rows[0];
-
-  // Reuse or create the Stripe customer, keyed back to our user id.
-  let customerId = user.stripe_customer_id;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: user.email,
-      metadata: { userId: req.userId! },
-    });
-    customerId = customer.id;
-    await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.userId]);
+  const link = LINK_BY_PLAN[parsed.data.plan];
+  if (!link) {
+    return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado (Payment Link em falta).` });
   }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: customerId,
-    line_items: [{ price, quantity: 1 }],
-    success_url: `${config.FRONTEND_URL}/billing?success=true`,
-    cancel_url: `${config.FRONTEND_URL}/billing?canceled=true`,
-  });
+  const userRes = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [req.userId]);
+  if (userRes.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
 
-  res.json({ url: session.url });
+  const url = new URL(link);
+  url.searchParams.set('client_reference_id', req.userId!);
+  url.searchParams.set('prefilled_email', userRes.rows[0].email);
+  res.json({ url: url.toString() });
 });
 
 // POST /api/billing/portal — open the Stripe customer portal
@@ -139,6 +121,14 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         break;
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        // Payment Link carries our user id in client_reference_id. Link the
+        // Stripe customer (created by the link) to that user before applying.
+        const userId = session.client_reference_id;
+        const customerId =
+          typeof session.customer === 'string' ? session.customer : (session.customer?.id ?? null);
+        if (userId && customerId) {
+          await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, userId]);
+        }
         if (session.subscription) {
           const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
           const sub = await stripe.subscriptions.retrieve(subId);

@@ -68,8 +68,10 @@ contradiz o posicionamento. Se for pedido, recusar e oferecer as vias legais aci
 ## Billing & limites
 
 **Um único plano pago** (mesmas funcionalidades), cobrado **mensal (9,90€)** ou **anual
-(99€)** — duas prices Stripe (`STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`), ambas mapeiam
-para o tier `paid`. Limite **mensal** de buscas por tier em `middleware/tier-limits.ts`
+(99€)** via **Stripe Payment Links** (`STRIPE_LINK_MONTHLY` / `STRIPE_LINK_ANNUAL`).
+`/api/billing/checkout` devolve o link com `client_reference_id=<userId>` + `prefilled_email`;
+o webhook usa o `client_reference_id` para ligar o Stripe customer ao utilizador e marcar
+`paid`. Limite **mensal** de buscas por tier em `middleware/tier-limits.ts`
 (trial=10, paid=30), lido da DB. Janela mensal (não diária) porque o uso é em rajadas.
 Webhook Stripe em `/api/billing/webhook` (raw body, antes do `express.json`). Tudo no-op
 gracioso se `STRIPE_*` não estiver configurado.
