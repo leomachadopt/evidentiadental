@@ -9,7 +9,10 @@ import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
 import { CuratedPage } from './pages/CuratedPage';
 import { BillingPage } from './pages/BillingPage';
+import { AdminPage } from './pages/AdminPage';
 import { MeshBackground } from './components/MeshBackground';
+import { useQuery } from '@tanstack/react-query';
+import { api } from './lib/api';
 
 function isAuthenticated(): boolean {
   return !!localStorage.getItem('evidentia_token');
@@ -51,6 +54,7 @@ export default function App() {
   const authed = isAuthenticated();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { data: me } = useQuery({ queryKey: ['me'], queryFn: () => api.me(), enabled: authed, retry: false });
 
   function signOut() {
     localStorage.removeItem('evidentia_token');
@@ -72,6 +76,9 @@ export default function App() {
                     {item.label}
                   </Link>
                 ))}
+                {me?.isAdmin && (
+                  <Link to="/admin" className={navClass(location.pathname === '/admin')}>Admin</Link>
+                )}
                 <button onClick={signOut} className="btn-ghost ml-1" title="Sair">
                   <LogOut className="h-4 w-4" />
                 </button>
@@ -107,6 +114,11 @@ export default function App() {
                 {item.label}
               </Link>
             ))}
+            {me?.isAdmin && (
+              <Link to="/admin" onClick={() => setMenuOpen(false)} className={navClass(location.pathname === '/admin')}>
+                Admin
+              </Link>
+            )}
             <button onClick={signOut} className="btn-ghost justify-start">
               <LogOut className="h-4 w-4" /> Sair
             </button>
@@ -122,6 +134,7 @@ export default function App() {
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
           <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
           <Route path="/searches/:id" element={<ProtectedRoute><SearchResultsPage /></ProtectedRoute>} />
         </Routes>
       </main>

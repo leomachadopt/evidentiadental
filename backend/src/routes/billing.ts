@@ -17,20 +17,20 @@ billingRouter.get('/status', async (req, res) => {
 });
 
 const PRICE_BY_PLAN: Record<string, string | undefined> = {
-  clinical: config.STRIPE_PRICE_CLINICAL,
-  pro: config.STRIPE_PRICE_PRO,
+  monthly: config.STRIPE_PRICE_MONTHLY,
+  annual: config.STRIPE_PRICE_ANNUAL,
 };
 
 // POST /api/billing/checkout — start a Stripe Checkout subscription session
 billingRouter.post('/checkout', async (req, res) => {
   if (!stripe) return res.status(503).json({ error: 'Billing não configurado (STRIPE_SECRET_KEY em falta).' });
 
-  const schema = z.object({ plan: z.enum(['clinical', 'pro']) });
+  const schema = z.object({ plan: z.enum(['monthly', 'annual']) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   const price = PRICE_BY_PLAN[parsed.data.plan];
-  if (!price) return res.status(503).json({ error: `Preço do plano ${parsed.data.plan} não configurado.` });
+  if (!price) return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado.` });
 
   const userRes = await query<{ email: string; stripe_customer_id: string | null }>(
     'SELECT email, stripe_customer_id FROM users WHERE id = $1',

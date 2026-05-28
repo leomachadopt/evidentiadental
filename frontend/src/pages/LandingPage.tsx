@@ -31,6 +31,14 @@ const STEPS = [
   { n: '03', title: 'Síntese citável', body: 'Resposta clínica em 4 secções, com cada afirmação ligada a um [PMID] real.' },
 ];
 
+// Same features for everyone — only the billing cadence differs.
+const PLAN_FEATURES = [
+  '30 buscas por mês',
+  'Mini-sínteses com citações validadas',
+  'Biblioteca pessoal + exports',
+  'Acesso a texto completo (legal)',
+];
+
 export function LandingPage() {
   return (
     <div className="animate-fade-up">
@@ -59,7 +67,7 @@ export function LandingPage() {
               </a>
             </div>
             {/* Zero-price + regret aversion microcopy */}
-            <p className="mt-3 text-sm text-slate-500">14 dias grátis · sem cartão · cancela quando quiseres</p>
+            <p className="mt-3 text-sm text-slate-500">7 dias grátis · sem cartão · cancela quando quiseres</p>
           </div>
 
           {/* Hero proof card — shows the "after": a cited synthesis */}
@@ -226,28 +234,28 @@ export function LandingPage() {
 
       {/* ===== PRICING — Good-Better-Best, anchoring, default highlight, mental accounting ===== */}
       <section id="precos" className="py-12">
-        <h2 className="text-center text-2xl font-semibold tracking-tight md:text-3xl">Planos simples</h2>
-        <p className="mt-2 text-center text-slate-600">Começa grátis. Sobe quando o valor for óbvio.</p>
+        <h2 className="text-center text-2xl font-semibold tracking-tight md:text-3xl">Um plano. Paga como preferires.</h2>
+        <p className="mt-2 text-center text-slate-600">
+          7 dias grátis, sem cartão. Depois escolhes mensal ou anual — as mesmas funcionalidades nos dois.
+        </p>
 
-        <div className="mx-auto mt-8 grid max-w-4xl items-stretch gap-4 md:grid-cols-3">
-          {/* Free anchor (Zero-price effect) */}
-          <PriceCard name="Trial" price="0€" period="14 dias" cta="Criar conta" features={['5 buscas por dia', 'Mini-sínteses citadas', 'Sem cartão']} />
-          {/* Default / recommended (middle tier) */}
+        <div className="mx-auto mt-8 grid max-w-2xl items-stretch gap-4 sm:grid-cols-2">
+          {/* Monthly — the low-friction entry */}
+          <PriceCard name="Mensal" price="9,90€" period="/mês" cta="Começar grátis" features={PLAN_FEATURES} />
+          {/* Annual — anchored as the better value (saves ~2 months) */}
           <PriceCard
-            name="Clinical"
-            price="19€"
-            period="/mês"
+            name="Anual"
+            price="99€"
+            period="/ano"
             highlight
-            note="≈ 0,63€/dia — menos que o teu café"
+            note="≈ 2 meses grátis vs mensal"
             cta="Começar grátis"
-            features={['50 buscas por dia', 'Biblioteca pessoal', 'Exports Markdown + PDF', 'Acesso institucional']}
+            features={PLAN_FEATURES}
           />
-          {/* Anchor up (makes Clinical look reasonable) */}
-          <PriceCard name="Pro" price="49€" period="/mês" cta="Começar grátis" features={['Buscas ilimitadas', 'Tudo do Clinical', 'Bibliotecas curadas', 'Acesso prioritário']} />
         </div>
         <p className="mx-auto mt-5 max-w-xl text-center text-sm text-slate-500">
-          Uma hora do teu tempo clínico vale muito mais do que 19€/mês. O EvidentiaDental devolve-te
-          várias por semana.
+          Uma hora do teu tempo clínico vale muito mais do que 9,90€/mês. O EvidentiaDental
+          devolve-te várias por semana.
         </p>
       </section>
 

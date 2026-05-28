@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db/client.js';
 import { authRequired } from '../middleware/auth.js';
-import { dailyLimit } from '../middleware/tier-limits.js';
+import { monthlyLimit } from '../middleware/tier-limits.js';
 import { createSearch, executeSearch } from '../services/search-service.js';
 import { generateSynthesis } from '../services/synthesis-service.js';
 
@@ -14,7 +14,7 @@ searchesRouter.use(authRequired);
 // ============================================================
 // POST /api/searches — create a new search (generates PICO)
 // ============================================================
-searchesRouter.post('/', dailyLimit('search'), async (req, res) => {
+searchesRouter.post('/', monthlyLimit('search'), async (req, res) => {
   const schema = z.object({ question: z.string().min(10).max(1000) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -101,7 +101,7 @@ searchesRouter.get('/:id', async (req, res) => {
 // ============================================================
 // POST /api/searches/:id/synthesis — generate mini-synthesis
 // ============================================================
-searchesRouter.post('/:id/synthesis', dailyLimit('synthesis'), async (req, res) => {
+searchesRouter.post('/:id/synthesis', monthlyLimit('synthesis'), async (req, res) => {
   const schema = z.object({
     selectedPaperIds: z.array(z.string().uuid()).min(2).max(20),
   });

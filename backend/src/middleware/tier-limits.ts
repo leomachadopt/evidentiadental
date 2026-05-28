@@ -1,18 +1,18 @@
 /**
- * Tier limits — enforce per-day quotas on the expensive write actions
- * (creating a search, generating a synthesis) according to the user's plan.
+ * Tier limits — enforce a monthly search quota per plan.
  *
- * Limits are read from the DB (not the JWT) so an upgrade takes effect
- * immediately, without waiting for the 30-day token to refresh.
+ * Metered by quantity of searches, on a monthly window (not daily): clinical
+ * usage is bursty, so a monthly budget fits real behaviour and protects margin
+ * (a daily cap of N allows ~30N/month). Limits are read from the DB so an
+ * upgrade takes effect immediately.
  */
 
 import type { RequestHandler } from 'express';
 import { query } from '../db/client.js';
 
-export const DAILY_LIMITS: Record<string, number> = {
-  trial: 5,
-  clinical: 50,
-  pro: Infinity,
+export const MONTHLY_LIMITS: Record<string, number> = {
+  trial: 10,
+  paid: 30,
 };
 
 export interface UsageStatus {
@@ -20,9 +20,9 @@ export interface UsageStatus {
   trialEndsAt: string | null;
   trialExpired: boolean;
   subscriptionStatus: string | null;
-  searchesToday: number;
-  synthesesToday: number;
-  dailyLimit: number;
+  searchesThisMonth: number;
+  synthesesThisMonth: number;
+  monthlyLimit: number;
 }
 
 export async function getUsageStatus(userId: string): Promise<UsageStatus> {
@@ -38,13 +38,13 @@ export async function getUsageStatus(userId: string): Promise<UsageStatus> {
   const [searchesRes, synthRes] = await Promise.all([
     query<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM searches
-       WHERE user_id = $1 AND created_at >= date_trunc('day', now())`,
+       WHERE user_id = $1 AND created_at >= date_trunc('month', now())`,
       [userId],
     ),
     query<{ count: string }>(
       `SELECT COUNT(*)::int AS count FROM syntheses s
        JOIN searches se ON se.id = s.search_id
-       WHERE se.user_id = $1 AND s.created_at >= date_trunc('day', now())`,
+       WHERE se.user_id = $1 AND s.created_at >= date_trunc('month', now())`,
       [userId],
     ),
   ]);
@@ -57,16 +57,16 @@ export async function getUsageStatus(userId: string): Promise<UsageStatus> {
     trialEndsAt: user.trial_ends_at,
     trialExpired,
     subscriptionStatus: user.subscription_status,
-    searchesToday: Number(searchesRes.rows[0].count),
-    synthesesToday: Number(synthRes.rows[0].count),
-    dailyLimit: DAILY_LIMITS[tier] ?? DAILY_LIMITS.trial,
+    searchesThisMonth: Number(searchesRes.rows[0].count),
+    synthesesThisMonth: Number(synthRes.rows[0].count),
+    monthlyLimit: MONTHLY_LIMITS[tier] ?? MONTHLY_LIMITS.trial,
   };
 }
 
 /**
- * Middleware factory. `kind` selects which counter the daily limit applies to.
+ * Middleware factory. `kind` selects which monthly counter the quota applies to.
  */
-export function dailyLimit(kind: 'search' | 'synthesis'): RequestHandler {
+export function monthlyLimit(kind: 'search' | 'synthesis'): RequestHandler {
   return async (req, res, next) => {
     try {
       const status = await getUsageStatus(req.userId!);
@@ -78,12 +78,12 @@ export function dailyLimit(kind: 'search' | 'synthesis'): RequestHandler {
         });
       }
 
-      const used = kind === 'search' ? status.searchesToday : status.synthesesToday;
-      if (used >= status.dailyLimit) {
+      const used = kind === 'search' ? status.searchesThisMonth : status.synthesesThisMonth;
+      if (used >= status.monthlyLimit) {
         return res.status(429).json({
-          error: `Limite diário do plano ${status.tier} atingido (${status.dailyLimit}/dia). Faz upgrade para continuar.`,
-          code: 'daily_limit_reached',
-          limit: status.dailyLimit,
+          error: `Limite mensal do plano ${status.tier} atingido (${status.monthlyLimit}/mês). Faz upgrade para continuar.`,
+          code: 'monthly_limit_reached',
+          limit: status.monthlyLimit,
           used,
         });
       }

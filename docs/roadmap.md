@@ -94,10 +94,10 @@
 
 ### Semana 11 — Billing Stripe
 - [x] Setup Stripe (`lib/stripe.ts`, checkout + customer portal em `routes/billing.ts`)
-- [ ] Criar produtos no Stripe: "Clinical 19€/mês", "Pro 49€/mês" → colar price IDs no `.env`
+- [ ] Criar no Stripe **um produto, duas prices**: Mensal 9,90€ + Anual 99€ → colar IDs no `.env` (`STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`)
 - [x] Webhook handler para subscription events (raw body, signature verificada)
 - [x] Middleware de verificação de tier por endpoint (`middleware/tier-limits.ts`)
-- [x] Limites por tier (trial = 5/dia, clinical = 50/dia, pro = ilimitado) + bloqueio de trial expirado
+- [x] Plano único, mesmas funcionalidades; limite **mensal** de buscas (trial = 10/mês, pago = 30/mês) + bloqueio de trial expirado
 - [x] Página de billing no frontend (`/billing`, com uso vs limite)
 - [x] Pricing na página de conta (falta landing page pública pré-login)
 

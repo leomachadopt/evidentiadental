@@ -1,28 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Loader2, Zap, Building2 } from 'lucide-react';
+import { Check, Loader2, Building2 } from 'lucide-react';
 import { api } from '../lib/api';
 
-const PLANS = [
-  {
-    id: 'clinical' as const,
-    name: 'Clinical',
-    price: '19€',
-    period: '/mês',
-    features: ['50 buscas por dia', 'Mini-sínteses com citações validadas', 'Biblioteca pessoal', 'Exports Markdown + PDF'],
-  },
-  {
-    id: 'pro' as const,
-    name: 'Pro',
-    price: '49€',
-    period: '/mês',
-    features: ['Buscas ilimitadas', 'Tudo do Clinical', 'Bibliotecas curadas', 'Acesso prioritário a novas features'],
-    highlight: true,
-  },
+// Single plan — same features regardless of billing cadence.
+const FEATURES = [
+  '30 buscas por mês',
+  'Mini-sínteses com citações validadas',
+  'Biblioteca pessoal',
+  'Exports Markdown + PDF',
+  'Acesso institucional (legal)',
 ];
 
 export function BillingPage() {
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [cadence, setCadence] = useState<'monthly' | 'annual'>('annual');
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const params = new URLSearchParams(window.location.search);
@@ -57,15 +49,15 @@ export function BillingPage() {
     }
   }
 
-  async function checkout(plan: 'clinical' | 'pro') {
+  async function checkout(plan: 'monthly' | 'annual') {
     setError(null);
-    setLoadingPlan(plan);
+    setCheckoutLoading(true);
     try {
       const { url } = await api.billingCheckout(plan);
       window.location.href = url;
     } catch (e: any) {
       setError(e.message);
-      setLoadingPlan(null);
+      setCheckoutLoading(false);
     }
   }
 
@@ -79,26 +71,27 @@ export function BillingPage() {
     }
   }
 
-  const tierLabel: Record<string, string> = { trial: 'Trial', clinical: 'Clinical', pro: 'Pro' };
+  const tierLabel: Record<string, string> = { trial: 'Trial', paid: 'Ativo' };
+  const isPaid = status?.tier === 'paid';
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-up">
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">A tua conta</h1>
 
       {justSucceeded && (
-        <div className="card bg-green-50 border-green-200 mb-6 flex items-center gap-2 text-green-800 text-sm">
+        <div className="card mb-6 flex items-center gap-2 border-green-200 bg-green-50 text-sm text-green-800">
           <Check className="h-5 w-5" /> Subscrição ativada. Obrigado!
         </div>
       )}
 
       {status && (
         <div className="card mb-8">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm text-slate-500">Plano atual</div>
               <div className="text-xl font-semibold">{tierLabel[status.tier] ?? status.tier}</div>
               {status.tier === 'trial' && status.trialEndsAt && (
-                <div className={`text-xs mt-1 ${status.trialExpired ? 'text-red-600' : 'text-slate-500'}`}>
+                <div className={`mt-1 text-xs ${status.trialExpired ? 'text-red-600' : 'text-slate-500'}`}>
                   {status.trialExpired
                     ? 'Trial terminado'
                     : `Trial até ${new Date(status.trialEndsAt).toLocaleDateString('pt-PT')}`}
@@ -106,66 +99,80 @@ export function BillingPage() {
               )}
             </div>
             <div className="text-right">
-              <div className="text-sm text-slate-500">Buscas hoje</div>
-              <div className="text-xl font-semibold">
-                {status.searchesToday}
-                <span className="text-slate-400 text-base"> / {status.dailyLimit === null || !isFinite(status.dailyLimit) ? '∞' : status.dailyLimit}</span>
+              <div className="text-sm text-slate-500">Buscas este mês</div>
+              <div className="text-xl font-semibold nums">
+                {status.searchesThisMonth}
+                <span className="text-base text-slate-400"> / {status.monthlyLimit ?? '∞'}</span>
               </div>
             </div>
           </div>
-          {status.tier !== 'trial' && (
-            <button onClick={openPortal} className="btn-secondary text-xs mt-4">
+          {isPaid && (
+            <button onClick={openPortal} className="btn-secondary mt-4 text-xs">
               Gerir subscrição
             </button>
           )}
         </div>
       )}
 
-      {error && <div className="text-sm text-red-600 mb-4">{error}</div>}
+      {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        {PLANS.map((plan) => (
-          <div
-            key={plan.id}
-            className={`card flex flex-col ${plan.highlight ? 'border-primary-400 ring-1 ring-primary-200' : ''}`}
-          >
-            {plan.highlight && (
-              <span className="self-start text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full mb-2 inline-flex items-center gap-1">
-                <Zap className="h-3 w-3" /> Popular
-              </span>
-            )}
-            <div className="text-lg font-semibold">{plan.name}</div>
-            <div className="mt-1 mb-4">
-              <span className="text-3xl font-bold">{plan.price}</span>
-              <span className="text-slate-500 text-sm">{plan.period}</span>
-            </div>
-            <ul className="space-y-2 text-sm text-slate-700 flex-1">
-              {plan.features.map((f) => (
-                <li key={f} className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-primary-600 mt-0.5 shrink-0" /> {f}
-                </li>
-              ))}
-            </ul>
+      {/* Subscribe — one plan, monthly or annual */}
+      {!isPaid && (
+        <div className="card">
+          <div className="mx-auto flex w-fit items-center gap-1 rounded-xl bg-slate-100/70 p-1">
             <button
-              onClick={() => checkout(plan.id)}
-              disabled={loadingPlan !== null || status?.tier === plan.id}
-              className="btn-primary w-full mt-4"
+              onClick={() => setCadence('monthly')}
+              className={
+                cadence === 'monthly'
+                  ? 'rounded-lg bg-white px-4 py-1.5 text-sm font-medium shadow-sm'
+                  : 'px-4 py-1.5 text-sm text-slate-500'
+              }
             >
-              {loadingPlan === plan.id ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : status?.tier === plan.id ? (
-                'Plano atual'
-              ) : (
-                `Subscrever ${plan.name}`
-              )}
+              Mensal
+            </button>
+            <button
+              onClick={() => setCadence('annual')}
+              className={
+                cadence === 'annual'
+                  ? 'rounded-lg bg-white px-4 py-1.5 text-sm font-medium shadow-sm'
+                  : 'px-4 py-1.5 text-sm text-slate-500'
+              }
+            >
+              Anual <span className="text-primary-600">−17%</span>
             </button>
           </div>
-        ))}
-      </div>
 
-      <p className="text-xs text-slate-400 mt-6 text-center">
-        Pagamento seguro via Stripe. Cancela quando quiseres.
-      </p>
+          <div className="mt-6 text-center">
+            <div className="text-lg font-semibold">EvidentiaDental</div>
+            <div className="mt-1">
+              <span className="text-4xl font-bold tracking-tight">{cadence === 'annual' ? '99€' : '9,90€'}</span>
+              <span className="text-slate-500"> {cadence === 'annual' ? '/ano' : '/mês'}</span>
+            </div>
+            <div className="mt-1 text-xs text-primary-700">
+              {cadence === 'annual' ? '≈ 2 meses grátis vs mensal' : 'ou 99€/ano (poupa ~17%)'}
+            </div>
+          </div>
+
+          <ul className="mx-auto mt-5 max-w-sm space-y-2 text-sm text-slate-700">
+            {FEATURES.map((f) => (
+              <li key={f} className="flex items-start gap-2">
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" /> {f}
+              </li>
+            ))}
+          </ul>
+
+          <button onClick={() => checkout(cadence)} disabled={checkoutLoading} className="btn-primary mt-6 w-full">
+            {checkoutLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              `Subscrever — ${cadence === 'annual' ? '99€/ano' : '9,90€/mês'}`
+            )}
+          </button>
+          <p className="mt-3 text-center text-xs text-slate-400">
+            Pagamento seguro via Stripe. Cancela quando quiseres.
+          </p>
+        </div>
+      )}
 
       {/* Institutional full-text access */}
       <div className="card mt-8">

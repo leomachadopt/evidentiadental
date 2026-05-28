@@ -9,6 +9,7 @@ import { curatedRouter } from './routes/curated.js';
 import { billingRouter, handleStripeWebhook } from './routes/billing.js';
 import { papersRouter } from './routes/papers.js';
 import { settingsRouter } from './routes/settings.js';
+import { adminRouter } from './routes/admin.js';
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api/curated', curatedRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/papers', papersRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/admin', adminRouter);
 
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

@@ -9,6 +9,7 @@ dotenv.config({ override: true });
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  ADMIN_EMAIL: z.string().email().optional(),
   NCBI_API_KEY: z.string().optional(),
   NCBI_EMAIL: z.string().email(),
   ANTHROPIC_API_KEY: z.string().startsWith('sk-ant-'),
@@ -18,8 +19,8 @@ const schema = z.object({
   CORE_API_KEY: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
-  STRIPE_PRICE_CLINICAL: z.string().optional(),
-  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_MONTHLY: z.string().optional(),
+  STRIPE_PRICE_ANNUAL: z.string().optional(),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),

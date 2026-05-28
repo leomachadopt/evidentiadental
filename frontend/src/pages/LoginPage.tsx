@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Microscope, ShieldCheck, Search, FileText, Loader2 } from 'lucide-react';
 import { api, setToken } from '../lib/api';
 
@@ -11,6 +12,7 @@ const PROMISES = [
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [mode, setMode] = useState<'login' | 'register'>(
     new URLSearchParams(window.location.search).get('mode') === 'register' ? 'register' : 'login',
   );
@@ -31,7 +33,8 @@ export function LoginPage() {
           ? await api.login({ email, password })
           : await api.register({ email, password, name, speciality });
       setToken(result.token);
-      navigate('/');
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+      navigate(result.user?.isAdmin ? '/admin' : '/');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -81,7 +84,7 @@ export function LoginPage() {
           {mode === 'login' ? 'Entrar' : 'Criar conta'}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          {mode === 'login' ? 'Bem-vindo de volta.' : 'Trial gratuito de 14 dias. Sem cartão.'}
+          {mode === 'login' ? 'Bem-vindo de volta.' : 'Trial gratuito de 7 dias. Sem cartão.'}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">

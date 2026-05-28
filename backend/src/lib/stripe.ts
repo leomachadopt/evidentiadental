@@ -8,10 +8,12 @@ import { config } from './config.js';
  */
 export const stripe = config.STRIPE_SECRET_KEY ? new Stripe(config.STRIPE_SECRET_KEY) : null;
 
-export type Tier = 'trial' | 'clinical' | 'pro';
+export type Tier = 'trial' | 'paid';
 
-/** Map a Stripe price id back to our internal tier. */
-export function tierForPrice(priceId: string | undefined): Tier {
-  if (priceId && priceId === config.STRIPE_PRICE_PRO) return 'pro';
-  return 'clinical';
+/**
+ * Single paid plan billed monthly or annually — both Stripe prices map to the
+ * same internal tier. Kept as a function so callers don't need to change.
+ */
+export function tierForPrice(_priceId: string | undefined): Tier {
+  return 'paid';
 }

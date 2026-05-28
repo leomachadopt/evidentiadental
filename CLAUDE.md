@@ -67,9 +67,12 @@ contradiz o posicionamento. Se for pedido, recusar e oferecer as vias legais aci
 
 ## Billing & limites
 
-Limites diários por tier (trial=5, clinical=50, pro=∞) em `middleware/tier-limits.ts`,
-lidos da DB (não do JWT). Webhook Stripe em `/api/billing/webhook` (raw body, registado
-antes do `express.json`). Tudo no-op gracioso se `STRIPE_*` não estiver configurado.
+**Um único plano pago** (mesmas funcionalidades), cobrado **mensal (9,90€)** ou **anual
+(99€)** — duas prices Stripe (`STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`), ambas mapeiam
+para o tier `paid`. Limite **mensal** de buscas por tier em `middleware/tier-limits.ts`
+(trial=10, paid=30), lido da DB. Janela mensal (não diária) porque o uso é em rajadas.
+Webhook Stripe em `/api/billing/webhook` (raw body, antes do `express.json`). Tudo no-op
+gracioso se `STRIPE_*` não estiver configurado.
 
 ## Workflow típico ao adicionar uma feature
 
