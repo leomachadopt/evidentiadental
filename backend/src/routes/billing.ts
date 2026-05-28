@@ -16,31 +16,59 @@ billingRouter.get('/status', async (req, res) => {
   res.json(status);
 });
 
-const LINK_BY_PLAN: Record<string, string | undefined> = {
-  monthly: config.STRIPE_LINK_MONTHLY,
-  annual: config.STRIPE_LINK_ANNUAL,
+const PRICE_BY_PLAN: Record<string, string | undefined> = {
+  monthly: config.STRIPE_PRICE_MONTHLY,
+  annual: config.STRIPE_PRICE_ANNUAL,
 };
 
-// POST /api/billing/checkout — return the Stripe Payment Link for this plan,
-// tagged with client_reference_id so the webhook can map the payment back to
-// this user (Payment Links are static URLs, so we pass identity via the query).
+// POST /api/billing/checkout — create a Stripe Checkout Session for the chosen
+// plan. The Stripe customer (and its email) is reused from the user's record so
+// the buyer never re-enters data collected at sign-up; the plan is fixed as a
+// line item so Stripe doesn't ask them to choose again; and the 7-day trial is
+// defined here in code instead of depending on dashboard configuration.
 billingRouter.post('/checkout', async (req, res) => {
+  if (!stripe) return res.status(503).json({ error: 'Billing não configurado.' });
+
   const schema = z.object({ plan: z.enum(['monthly', 'annual']) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const link = LINK_BY_PLAN[parsed.data.plan];
-  if (!link) {
-    return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado (Payment Link em falta).` });
+  const price = PRICE_BY_PLAN[parsed.data.plan];
+  if (!price) {
+    return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado (price ID em falta).` });
   }
 
-  const userRes = await query<{ email: string }>('SELECT email FROM users WHERE id = $1', [req.userId]);
+  const userRes = await query<{ email: string; stripe_customer_id: string | null }>(
+    'SELECT email, stripe_customer_id FROM users WHERE id = $1',
+    [req.userId],
+  );
   if (userRes.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
 
-  const url = new URL(link);
-  url.searchParams.set('client_reference_id', req.userId!);
-  url.searchParams.set('prefilled_email', userRes.rows[0].email);
-  res.json({ url: url.toString() });
+  // Reuse the customer if we have one, otherwise create it now so the email is
+  // prefilled and the webhook can map subscription events back to this user.
+  let customerId = userRes.rows[0].stripe_customer_id;
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: userRes.rows[0].email,
+      metadata: { userId: req.userId! },
+    });
+    customerId = customer.id;
+    await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.userId]);
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    customer: customerId,
+    line_items: [{ price, quantity: 1 }],
+    subscription_data: { trial_period_days: 7 },
+    client_reference_id: req.userId!,
+    allow_promotion_codes: true,
+    success_url: `${config.FRONTEND_URL}/billing?success=true`,
+    cancel_url: `${config.FRONTEND_URL}/billing`,
+  });
+
+  if (!session.url) return res.status(502).json({ error: 'Stripe não devolveu URL de checkout.' });
+  res.json({ url: session.url });
 });
 
 // POST /api/billing/portal — open the Stripe customer portal

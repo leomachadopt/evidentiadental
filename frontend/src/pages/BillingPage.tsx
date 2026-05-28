@@ -23,6 +23,9 @@ export function BillingPage() {
   const { data: status } = useQuery({
     queryKey: ['billing-status'],
     queryFn: () => api.billingStatus(),
+    // After returning from Stripe, poll until the webhook grants access so the
+    // user sees confirmation instead of the plan picker again.
+    refetchInterval: (q) => (justSucceeded && !q.state.data?.hasAccess ? 2000 : false),
   });
 
   const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: () => api.getSettings() });
@@ -83,15 +86,23 @@ export function BillingPage() {
       ? (statusLabel[status.subscriptionStatus] ?? status.subscriptionStatus)
       : 'Sem subscrição';
   const hasSub = status?.subscriptionStatus === 'trialing' || status?.subscriptionStatus === 'active';
-  const showSubscribe = !!status && !status.hasAccess;
+  // While confirming a fresh payment, don't show the plan picker again.
+  const confirming = justSucceeded && !!status && !status.hasAccess;
+  const showSubscribe = !!status && !status.hasAccess && !confirming;
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-up">
       <h1 className="mb-2 text-2xl font-semibold tracking-tight">A tua conta</h1>
 
-      {justSucceeded && (
+      {justSucceeded && !confirming && (
         <div className="card mb-6 flex items-center gap-2 border-green-200 bg-green-50 text-sm text-green-800">
           <Check className="h-5 w-5" /> Subscrição ativada. Obrigado!
+        </div>
+      )}
+
+      {confirming && (
+        <div className="card mb-6 flex items-center gap-2 border-primary-200 bg-primary-50 text-sm text-primary-800">
+          <Loader2 className="h-5 w-5 animate-spin" /> A confirmar o teu pagamento com o Stripe…
         </div>
       )}
 
