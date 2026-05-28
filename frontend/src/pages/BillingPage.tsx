@@ -71,8 +71,19 @@ export function BillingPage() {
     }
   }
 
-  const tierLabel: Record<string, string> = { trial: 'Trial', paid: 'Ativo' };
-  const isPaid = status?.tier === 'paid';
+  const statusLabel: Record<string, string> = {
+    trialing: 'Trial',
+    active: 'Ativo',
+    past_due: 'Pagamento pendente',
+    canceled: 'Cancelada',
+  };
+  const planLabel = status?.isAdmin
+    ? 'Admin (acesso total)'
+    : status?.subscriptionStatus
+      ? (statusLabel[status.subscriptionStatus] ?? status.subscriptionStatus)
+      : 'Sem subscrição';
+  const hasSub = status?.subscriptionStatus === 'trialing' || status?.subscriptionStatus === 'active';
+  const showSubscribe = !!status && !status.hasAccess;
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-up">
@@ -89,12 +100,11 @@ export function BillingPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="text-sm text-slate-500">Plano atual</div>
-              <div className="text-xl font-semibold">{tierLabel[status.tier] ?? status.tier}</div>
-              {status.tier === 'trial' && status.trialEndsAt && (
-                <div className={`mt-1 text-xs ${status.trialExpired ? 'text-red-600' : 'text-slate-500'}`}>
-                  {status.trialExpired
-                    ? 'Trial terminado'
-                    : `Trial até ${new Date(status.trialEndsAt).toLocaleDateString('pt-PT')}`}
+              <div className="text-xl font-semibold">{planLabel}</div>
+              {status.currentPeriodEnd && (status.subscriptionStatus === 'trialing' || status.subscriptionStatus === 'active') && (
+                <div className="mt-1 text-xs text-slate-500">
+                  {status.isTrialing ? 'Trial termina em ' : 'Renova em '}
+                  {new Date(status.currentPeriodEnd).toLocaleDateString('pt-PT')}
                 </div>
               )}
             </div>
@@ -106,7 +116,7 @@ export function BillingPage() {
               </div>
             </div>
           </div>
-          {isPaid && (
+          {hasSub && (
             <button onClick={openPortal} className="btn-secondary mt-4 text-xs">
               Gerir subscrição
             </button>
@@ -117,7 +127,7 @@ export function BillingPage() {
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
       {/* Subscribe — one plan, monthly or annual */}
-      {!isPaid && (
+      {showSubscribe && (
         <div className="card">
           <div className="mx-auto flex w-fit items-center gap-1 rounded-xl bg-slate-100/70 p-1">
             <button
@@ -162,14 +172,10 @@ export function BillingPage() {
           </ul>
 
           <button onClick={() => checkout(cadence)} disabled={checkoutLoading} className="btn-primary mt-6 w-full">
-            {checkoutLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              `Subscrever — ${cadence === 'annual' ? '99€/ano' : '9,90€/mês'}`
-            )}
+            {checkoutLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Começar — 7 dias grátis'}
           </button>
           <p className="mt-3 text-center text-xs text-slate-400">
-            Pagamento seguro via Stripe. Cancela quando quiseres.
+            7 dias grátis, depois cobrado automaticamente. Cancela quando quiseres. Pagamento seguro via Stripe.
           </p>
         </div>
       )}

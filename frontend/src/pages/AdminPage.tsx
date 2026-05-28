@@ -46,7 +46,7 @@ export function AdminPage() {
       {/* Stats */}
       <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Utilizadores" value={stats?.totalUsers} loading={statsQ.isLoading} />
-        <Stat label="Pagos" value={stats?.byTier?.paid ?? 0} loading={statsQ.isLoading} />
+        <Stat label="Subscritos" value={stats?.subscribed ?? 0} loading={statsQ.isLoading} />
         <Stat label="Buscas (total)" value={stats?.totalSearches} loading={statsQ.isLoading} />
         <Stat label="Custo IA estimado" value={stats ? `$${stats.estCostUsd.toFixed(2)}` : undefined} loading={statsQ.isLoading} />
       </div>
@@ -63,11 +63,10 @@ export function AdminPage() {
             <thead className="text-xs uppercase tracking-wide text-slate-400">
               <tr className="border-b border-slate-100">
                 <th className="py-2 pr-3 font-medium">Email</th>
-                <th className="py-2 pr-3 font-medium">Plano</th>
+                <th className="py-2 pr-3 font-medium">Acesso</th>
                 <th className="py-2 pr-3 font-medium nums">Buscas</th>
                 <th className="py-2 pr-3 font-medium">Registo</th>
-                <th className="py-2 pr-3 font-medium">Admin</th>
-                <th className="py-2 font-medium">Ações</th>
+                <th className="py-2 font-medium">Admin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -79,19 +78,20 @@ export function AdminPage() {
                   </td>
                   <td className="py-2.5 pr-3">
                     <select
-                      value={u.subscription_tier}
-                      onChange={(e) => updateUser.mutate({ id: u.id, patch: { subscriptionTier: e.target.value } })}
+                      value={u.subscription_status === 'active' ? 'active' : u.subscription_status === 'trialing' ? 'trialing' : 'none'}
+                      onChange={(e) => updateUser.mutate({ id: u.id, patch: { access: e.target.value as any } })}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
                     >
-                      <option value="trial">Trial</option>
-                      <option value="paid">Pago</option>
+                      <option value="none">Sem acesso</option>
+                      <option value="trialing">Trial</option>
+                      <option value="active">Ativo</option>
                     </select>
                   </td>
                   <td className="py-2.5 pr-3 nums text-slate-600">{u.total_searches}</td>
                   <td className="py-2.5 pr-3 text-xs text-slate-500">
                     {new Date(u.created_at).toLocaleDateString('pt-PT')}
                   </td>
-                  <td className="py-2.5 pr-3">
+                  <td className="py-2.5">
                     <button
                       onClick={() => updateUser.mutate({ id: u.id, patch: { isAdmin: !u.is_admin } })}
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -99,14 +99,6 @@ export function AdminPage() {
                       }`}
                     >
                       {u.is_admin ? 'Admin' : '—'}
-                    </button>
-                  </td>
-                  <td className="py-2.5">
-                    <button
-                      onClick={() => updateUser.mutate({ id: u.id, patch: { extendTrialDays: 14 } })}
-                      className="text-xs text-primary-700 hover:underline"
-                    >
-                      +14d trial
                     </button>
                   </td>
                 </tr>

@@ -122,13 +122,14 @@ export const api = {
   // Billing
   billingStatus: () =>
     request<{
-      tier: string;
-      trialEndsAt: string | null;
-      trialExpired: boolean;
+      isAdmin: boolean;
       subscriptionStatus: string | null;
+      isTrialing: boolean;
+      currentPeriodEnd: string | null;
+      hasAccess: boolean;
       searchesThisMonth: number;
       synthesesThisMonth: number;
-      monthlyLimit: number | null; // Infinity (pro) serializes to null over JSON
+      monthlyLimit: number | null; // Infinity (admin) serializes to null over JSON
     }>('/api/billing/status'),
   billingCheckout: (plan: 'monthly' | 'annual') =>
     request<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan }) }),
@@ -150,15 +151,25 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // Current user (source of truth for admin gating)
+  // Current user + access state (source of truth for gating)
   me: () =>
-    request<{ id: string; email: string; name: string | null; tier: string; isAdmin: boolean }>('/api/auth/me'),
+    request<{
+      id: string;
+      email: string;
+      name: string | null;
+      isAdmin: boolean;
+      subscriptionStatus: string | null;
+      isTrialing: boolean;
+      currentPeriodEnd: string | null;
+      hasAccess: boolean;
+    }>('/api/auth/me'),
 
   // Admin
   adminStats: () =>
     request<{
       totalUsers: number;
       admins: number;
+      subscribed: number;
       byTier: Record<string, number>;
       totalSearches: number;
       totalSyntheses: number;
@@ -169,6 +180,6 @@ export const api = {
   adminUsers: () => request<{ users: any[] }>('/api/admin/users'),
   adminUpdateUser: (
     id: string,
-    patch: { subscriptionTier?: 'trial' | 'paid'; isAdmin?: boolean; extendTrialDays?: number },
+    patch: { access?: 'active' | 'trialing' | 'canceled' | 'none'; isAdmin?: boolean },
   ) => request<any>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
 };

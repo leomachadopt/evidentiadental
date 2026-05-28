@@ -23,6 +23,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Funnel users without an active subscription to /billing. `hasAccess` undefined
+// means still loading — render through; once resolved to false, redirect.
+function RequireAccess({ hasAccess, children }: { hasAccess: boolean | undefined; children: React.ReactNode }) {
+  if (hasAccess === false) return <Navigate to="/billing" replace />;
+  return <>{children}</>;
+}
+
 const NAV = [
   { to: '/', label: 'Nova busca' },
   { to: '/curated', label: 'Curadas' },
@@ -97,7 +104,7 @@ export default function App() {
           {!authed && location.pathname !== '/login' && (
             <div className="flex items-center gap-2">
               <Link to="/login" className="btn-ghost hidden sm:inline-flex">Entrar</Link>
-              <Link to="/login?mode=register" className="btn-primary">Começar grátis</Link>
+              <Link to="/login?mode=register" className="btn-primary">Começar trial</Link>
             </div>
           )}
         </div>
@@ -129,13 +136,16 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={authed ? <NewSearchPage /> : <LandingPage />} />
-          <Route path="/curated" element={<ProtectedRoute><CuratedPage /></ProtectedRoute>} />
-          <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-          <Route path="/library" element={<ProtectedRoute><LibraryPage /></ProtectedRoute>} />
+          <Route
+            path="/"
+            element={authed ? <RequireAccess hasAccess={me?.hasAccess}><NewSearchPage /></RequireAccess> : <LandingPage />}
+          />
+          <Route path="/curated" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><CuratedPage /></RequireAccess></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><HistoryPage /></RequireAccess></ProtectedRoute>} />
+          <Route path="/library" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><LibraryPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
-          <Route path="/searches/:id" element={<ProtectedRoute><SearchResultsPage /></ProtectedRoute>} />
+          <Route path="/searches/:id" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><SearchResultsPage /></RequireAccess></ProtectedRoute>} />
         </Routes>
       </main>
 

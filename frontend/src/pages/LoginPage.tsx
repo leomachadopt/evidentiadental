@@ -34,7 +34,11 @@ export function LoginPage() {
           : await api.register({ email, password, name, speciality });
       setToken(result.token);
       queryClient.invalidateQueries({ queryKey: ['me'] });
-      navigate(result.user?.isAdmin ? '/admin' : '/');
+      // Admin → admin area; new sign-up → start trial (/billing); existing → home
+      // (the access gate sends them to /billing if they have no active subscription).
+      if (result.user?.isAdmin) navigate('/admin');
+      else if (mode === 'register') navigate('/billing');
+      else navigate('/');
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -84,7 +88,7 @@ export function LoginPage() {
           {mode === 'login' ? 'Entrar' : 'Criar conta'}
         </h2>
         <p className="mt-1 text-sm text-slate-500">
-          {mode === 'login' ? 'Bem-vindo de volta.' : 'Trial gratuito de 7 dias. Sem cartão.'}
+          {mode === 'login' ? 'Bem-vindo de volta.' : 'Começa com 7 dias grátis.'}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">

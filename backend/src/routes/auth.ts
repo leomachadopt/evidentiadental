@@ -81,16 +81,30 @@ authRouter.post('/login', async (req, res) => {
   });
 });
 
-// GET /api/auth/me — current user (source of truth for the frontend, incl. admin)
+// GET /api/auth/me — current user + access state (source of truth for the frontend)
 authRouter.get('/me', authRequired, async (req, res) => {
   const result = await query<{
     id: string;
     email: string;
     name: string | null;
-    subscription_tier: string;
     is_admin: boolean;
-  }>('SELECT id, email, name, subscription_tier, is_admin FROM users WHERE id = $1', [req.userId]);
+    subscription_status: string | null;
+    current_period_end: string | null;
+  }>(
+    'SELECT id, email, name, is_admin, subscription_status, current_period_end FROM users WHERE id = $1',
+    [req.userId],
+  );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
   const u = result.rows[0];
-  res.json({ id: u.id, email: u.email, name: u.name, tier: u.subscription_tier, isAdmin: u.is_admin });
+  const subscribed = u.subscription_status === 'trialing' || u.subscription_status === 'active';
+  res.json({
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    isAdmin: u.is_admin,
+    subscriptionStatus: u.subscription_status,
+    isTrialing: u.subscription_status === 'trialing',
+    currentPeriodEnd: u.current_period_end,
+    hasAccess: u.is_admin || subscribed,
+  });
 });

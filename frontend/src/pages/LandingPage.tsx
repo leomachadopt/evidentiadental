@@ -60,14 +60,14 @@ export function LandingPage() {
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
               <Link to={REGISTER} className="btn-primary px-5 py-3 text-base">
-                <Sparkles className="h-4 w-4" /> Começar grátis
+                <Sparkles className="h-4 w-4" /> Começar trial
               </Link>
               <a href="#como-funciona" className="btn-secondary px-5 py-3 text-base">
                 Ver como funciona
               </a>
             </div>
             {/* Zero-price + regret aversion microcopy */}
-            <p className="mt-3 text-sm text-slate-500">7 dias grátis · sem cartão · cancela quando quiseres</p>
+            <p className="mt-3 text-sm text-slate-500">7 dias grátis, depois 9,90€/mês · cancela quando quiseres</p>
           </div>
 
           {/* Hero proof card — shows the "after": a cited synthesis */}
@@ -236,12 +236,12 @@ export function LandingPage() {
       <section id="precos" className="py-12">
         <h2 className="text-center text-2xl font-semibold tracking-tight md:text-3xl">Um plano. Paga como preferires.</h2>
         <p className="mt-2 text-center text-slate-600">
-          7 dias grátis, sem cartão. Depois escolhes mensal ou anual — as mesmas funcionalidades nos dois.
+          Começa com 7 dias grátis. Cancela antes do fim e não és cobrado. Mensal ou anual — as mesmas funcionalidades.
         </p>
 
         <div className="mx-auto mt-8 grid max-w-2xl items-stretch gap-4 sm:grid-cols-2">
           {/* Monthly — the low-friction entry */}
-          <PriceCard name="Mensal" price="9,90€" period="/mês" cta="Começar grátis" features={PLAN_FEATURES} />
+          <PriceCard name="Mensal" price="9,90€" period="/mês" cta="Começar trial" features={PLAN_FEATURES} />
           {/* Annual — anchored as the better value (saves ~2 months) */}
           <PriceCard
             name="Anual"
@@ -249,7 +249,7 @@ export function LandingPage() {
             period="/ano"
             highlight
             note="≈ 2 meses grátis vs mensal"
-            cta="Começar grátis"
+            cta="Começar trial"
             features={PLAN_FEATURES}
           />
         </div>
@@ -296,14 +296,14 @@ export function LandingPage() {
       <section className="py-16">
         <div className="card mx-auto max-w-2xl bg-gradient-to-br from-primary-50/70 to-white/70 text-center">
           <h2 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Faz a tua primeira pergunta. É grátis.
+            Começa o teu trial de 7 dias.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-slate-600">
-            Sem cartão, sem compromisso. Vê uma síntese citada com os teus próprios olhos em menos de
-            dois minutos.
+            Cancela quando quiseres, sem compromisso. Vê uma síntese citada com os teus próprios olhos
+            em menos de dois minutos.
           </p>
           <Link to={REGISTER} className="btn-primary mt-6 px-6 py-3 text-base">
-            <Sparkles className="h-4 w-4" /> Começar grátis
+            <Sparkles className="h-4 w-4" /> Começar trial
           </Link>
         </div>
       </section>
