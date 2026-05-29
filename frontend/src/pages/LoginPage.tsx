@@ -34,11 +34,28 @@ export function LoginPage() {
           : await api.register({ email, password, name, speciality });
       setToken(result.token);
       queryClient.invalidateQueries({ queryKey: ['me'] });
-      // Admin → admin area; new sign-up → start trial (/billing); existing → home
-      // (the access gate sends them to /billing if they have no active subscription).
-      if (result.user?.isAdmin) navigate('/admin');
-      else if (mode === 'register') navigate('/billing');
-      else navigate('/');
+      if (result.user?.isAdmin) {
+        navigate('/admin');
+        return;
+      }
+      if (mode === 'register') {
+        // If a plan was chosen on the landing page, go straight to Stripe — skip
+        // the billing plan picker. Fall back to /billing if checkout isn't ready.
+        const plan = new URLSearchParams(window.location.search).get('plan');
+        if (plan === 'monthly' || plan === 'annual') {
+          try {
+            const { url } = await api.billingCheckout(plan);
+            window.location.href = url;
+            return;
+          } catch {
+            navigate('/billing');
+            return;
+          }
+        }
+        navigate('/billing');
+        return;
+      }
+      navigate('/');
     } catch (e: any) {
       setError(e.message);
     } finally {

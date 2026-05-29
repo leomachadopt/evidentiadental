@@ -241,12 +241,13 @@ export function LandingPage() {
 
         <div className="mx-auto mt-8 grid max-w-2xl items-stretch gap-4 sm:grid-cols-2">
           {/* Monthly — the low-friction entry */}
-          <PriceCard name="Mensal" price="9,90€" period="/mês" cta="Começar trial" features={PLAN_FEATURES} />
+          <PriceCard name="Mensal" price="9,90€" period="/mês" plan="monthly" cta="Começar trial" features={PLAN_FEATURES} />
           {/* Annual — anchored as the better value (saves ~2 months) */}
           <PriceCard
             name="Anual"
             price="99€"
             period="/ano"
+            plan="annual"
             highlight
             note="≈ 2 meses grátis vs mensal"
             cta="Começar trial"
@@ -337,6 +338,7 @@ function PriceCard({
   period,
   features,
   cta,
+  plan,
   highlight = false,
   note,
 }: {
@@ -345,6 +347,7 @@ function PriceCard({
   period: string;
   features: string[];
   cta: string;
+  plan: 'monthly' | 'annual';
   highlight?: boolean;
   note?: string;
 }) {
@@ -369,7 +372,7 @@ function PriceCard({
           </li>
         ))}
       </ul>
-      <Link to={REGISTER} className={`mt-5 ${highlight ? 'btn-primary' : 'btn-secondary'} w-full`}>
+      <Link to={`${REGISTER}&plan=${plan}`} className={`mt-5 ${highlight ? 'btn-primary' : 'btn-secondary'} w-full`}>
         {cta}
       </Link>
     </div>
