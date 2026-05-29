@@ -182,4 +182,6 @@ export const api = {
     id: string,
     patch: { access?: 'active' | 'trialing' | 'canceled' | 'none'; isAdmin?: boolean },
   ) => request<any>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  adminDeleteUser: (id: string) =>
+    request<{ ok: boolean; email: string }>(`/api/admin/users/${id}`, { method: 'DELETE' }),
 };

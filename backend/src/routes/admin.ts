@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db/client.js';
+import { stripe } from '../lib/stripe.js';
 import { authRequired } from '../middleware/auth.js';
 import { adminRequired } from '../middleware/admin.js';
 
@@ -100,4 +101,42 @@ adminRouter.patch('/users/:id', async (req, res) => {
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
   res.json(result.rows[0]);
+});
+
+// DELETE /api/admin/users/:id — remove a user entirely (e.g. inactivity or
+// non-payment). Cancels any live Stripe subscription first so no charge fires
+// after deletion, then deletes the row (searches/library/usage cascade).
+// Self and other admins are protected.
+adminRouter.delete('/users/:id', async (req, res) => {
+  const targetId = req.params.id as string;
+
+  if (targetId === req.userId) {
+    return res.status(400).json({ error: 'Não podes eliminar a tua própria conta.' });
+  }
+
+  const userRes = await query<{
+    email: string;
+    is_admin: boolean;
+    stripe_subscription_id: string | null;
+  }>('SELECT email, is_admin, stripe_subscription_id FROM users WHERE id = $1', [targetId]);
+  if (userRes.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
+
+  const target = userRes.rows[0];
+  if (target.is_admin) {
+    return res
+      .status(400)
+      .json({ error: 'Não é possível eliminar outro administrador. Remove o acesso de admin primeiro.' });
+  }
+
+  // Best-effort: cancel the Stripe subscription so nothing is charged later.
+  if (stripe && target.stripe_subscription_id) {
+    try {
+      await stripe.subscriptions.cancel(target.stripe_subscription_id);
+    } catch (e: any) {
+      console.error('[admin] failed to cancel Stripe subscription on delete:', e.message);
+    }
+  }
+
+  await query('DELETE FROM users WHERE id = $1', [targetId]);
+  res.json({ ok: true, email: target.email });
 });

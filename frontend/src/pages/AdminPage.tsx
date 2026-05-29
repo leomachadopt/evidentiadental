@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, Loader2, Check } from 'lucide-react';
+import { ShieldAlert, Loader2, Check, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 export function AdminPage() {
@@ -15,6 +15,25 @@ export function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
     },
   });
+
+  const deleteUser = useMutation({
+    mutationFn: (id: string) => api.adminDeleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+    },
+    onError: (e: any) => alert(e?.message ?? 'Falha ao eliminar utilizador.'),
+  });
+
+  function confirmDelete(u: any) {
+    if (
+      window.confirm(
+        `Eliminar definitivamente ${u.email}?\n\nIsto cancela a subscrição Stripe (se existir) e apaga as buscas e biblioteca do utilizador. Não pode ser desfeito.`,
+      )
+    ) {
+      deleteUser.mutate(u.id);
+    }
+  }
 
   // Backend returns 403 for non-admins.
   const denied =
@@ -66,7 +85,8 @@ export function AdminPage() {
                 <th className="py-2 pr-3 font-medium">Acesso</th>
                 <th className="py-2 pr-3 font-medium nums">Buscas</th>
                 <th className="py-2 pr-3 font-medium">Registo</th>
-                <th className="py-2 font-medium">Admin</th>
+                <th className="py-2 pr-3 font-medium">Admin</th>
+                <th className="py-2 font-medium">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -91,7 +111,7 @@ export function AdminPage() {
                   <td className="py-2.5 pr-3 text-xs text-slate-500">
                     {new Date(u.created_at).toLocaleDateString('pt-PT')}
                   </td>
-                  <td className="py-2.5">
+                  <td className="py-2.5 pr-3">
                     <button
                       onClick={() => updateUser.mutate({ id: u.id, patch: { isAdmin: !u.is_admin } })}
                       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -100,6 +120,25 @@ export function AdminPage() {
                     >
                       {u.is_admin ? 'Admin' : '—'}
                     </button>
+                  </td>
+                  <td className="py-2.5">
+                    {u.is_admin ? (
+                      <span className="text-xs text-slate-300">—</span>
+                    ) : (
+                      <button
+                        onClick={() => confirmDelete(u)}
+                        disabled={deleteUser.isPending}
+                        title="Eliminar utilizador"
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {deleteUser.isPending && deleteUser.variables === u.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        Excluir
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
