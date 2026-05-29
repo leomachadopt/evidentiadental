@@ -99,7 +99,9 @@ ResearchGate. A bifurcação por artigo é obrigatória:
 - **Paywalled que um colega tem** → só registamos o pedido (`pdf_requests`) e devolvemos um
   **deep-link externo** (WhatsApp/email — o clássico "pedido de reprint"); o ficheiro viaja
   peer-to-peer, fora da plataforma. O backend rejeita pedidos de PDF sem seguimento mútuo, para
-  artigos OA, e para quem não tem o ficheiro ou não fez opt-in.
+  artigos OA, e para quem não tem o ficheiro ou não fez opt-in. O pedido aparece tanto no feed/
+  perfil como na **Biblioteca** (o `listLibrary` indica, por item, um colega de seguimento mútuo
+  que tem o PDF e aceita pedidos).
 
 Este princípio é irmão da regra anti-Sci-Hub acima: a fronteira é sempre *quem* move os bytes
 e *com que propósito*. Se for pedido para a plataforma transferir o ficheiro paywalled (mesmo

@@ -15,6 +15,7 @@ import {
   StickyNote,
   Save,
   Calendar,
+  Send,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { FullTextAccess } from '../components/FullTextAccess';
@@ -98,6 +99,17 @@ export function LibraryPage() {
       setError(e?.message ?? 'Falha no upload do PDF.');
     } finally {
       setUploadingId(null);
+    }
+  }
+
+  /** Ask a mutually-followed colleague (who has the PDF) for a paywalled paper. */
+  async function askColleaguePdf(paperId: string, colleagueId: string) {
+    setError(null);
+    try {
+      const { deeplink } = await api.requestPdf(paperId, colleagueId);
+      window.open(deeplink, '_blank');
+    } catch (e: any) {
+      setError(e?.message ?? 'Não foi possível pedir o PDF.');
     }
   }
 
@@ -321,6 +333,15 @@ export function LibraryPage() {
                             onChange={(e) => handleUpload(item.id, e.target.files?.[0])}
                           />
                         </label>
+                      )}
+                      {!item.pdf_url && !item.is_open_access && item.colleague_id && (
+                        <button
+                          onClick={() => askColleaguePdf(item.paper_id, item.colleague_id)}
+                          className="inline-flex items-center gap-1 text-primary-600 hover:underline"
+                          title="Pedir o PDF a um colega que o tem"
+                        >
+                          <Send className="h-3 w-3" /> Pedir PDF a {item.colleague_name ?? 'colega'}
+                        </button>
                       )}
                     </div>
 
