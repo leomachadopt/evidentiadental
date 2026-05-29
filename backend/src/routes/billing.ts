@@ -6,6 +6,7 @@ import { config } from '../lib/config.js';
 import { stripe, tierForPrice } from '../lib/stripe.js';
 import { authRequired } from '../middleware/auth.js';
 import { getUsageStatus } from '../middleware/tier-limits.js';
+import { emitFunnelEvent, type FunnelEvent, type FunnelPayload } from '../lib/marketing.js';
 
 export const billingRouter = Router();
 billingRouter.use(authRequired);
@@ -38,11 +39,14 @@ billingRouter.post('/checkout', async (req, res) => {
     return res.status(503).json({ error: `Plano ${parsed.data.plan} não configurado (price ID em falta).` });
   }
 
-  const userRes = await query<{ email: string; stripe_customer_id: string | null }>(
-    'SELECT email, stripe_customer_id FROM users WHERE id = $1',
+  const userRes = await query<{ email: string; name: string | null; stripe_customer_id: string | null }>(
+    'SELECT email, name, stripe_customer_id FROM users WHERE id = $1',
     [req.userId],
   );
   if (userRes.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
+
+  // Remember the chosen cadence so the funnel can segment monthly vs annual.
+  await query('UPDATE users SET plan_interval = $1 WHERE id = $2', [parsed.data.plan, req.userId]);
 
   // Reuse the customer if we have one, otherwise create it now so the email is
   // prefilled and the webhook can map subscription events back to this user.
@@ -68,6 +72,17 @@ billingRouter.post('/checkout', async (req, res) => {
   });
 
   if (!session.url) return res.status(502).json({ error: 'Stripe não devolveu URL de checkout.' });
+
+  // Mark the user as "in checkout". If they never complete, MailerLite's
+  // abandonment automation (gated on NOT being in the trial group) fires.
+  await emitFunnelEvent('checkout_started', {
+    email: userRes.rows[0].email,
+    name: userRes.rows[0].name,
+    userId: req.userId,
+    plan: parsed.data.plan,
+    stripeCustomerId: customerId,
+  });
+
   res.json({ url: session.url });
 });
 
@@ -92,6 +107,41 @@ billingRouter.post('/portal', async (req, res) => {
 // ============================================================
 // Webhook (mounted separately in index.ts with a raw body parser)
 // ============================================================
+
+/** Map a Stripe customer back to our user so funnel events carry email/name/plan. */
+async function userByCustomer(customerId: string) {
+  const r = await query<{ id: string; email: string; name: string | null; plan_interval: string | null }>(
+    'SELECT id, email, name, plan_interval FROM users WHERE stripe_customer_id = $1',
+    [customerId],
+  );
+  return r.rows[0] ?? null;
+}
+
+/** Emit a funnel event for the user behind a Stripe customer id. Best-effort. */
+async function emitForCustomer(
+  customerId: string,
+  event: FunnelEvent,
+  extra: Partial<FunnelPayload> = {},
+) {
+  const u = await userByCustomer(customerId);
+  if (!u) {
+    console.warn(`[billing] no user for customer ${customerId}; skipping ${event} funnel event`);
+    return;
+  }
+  await emitFunnelEvent(event, {
+    email: u.email,
+    name: u.name,
+    userId: u.id,
+    plan: u.plan_interval,
+    stripeCustomerId: customerId,
+    ...extra,
+  });
+}
+
+const subCustomerId = (sub: Stripe.Subscription) =>
+  typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
+
+const unixToIso = (ts: number | null | undefined) => (ts ? new Date(ts * 1000).toISOString() : null);
 
 async function applySubscription(sub: Stripe.Subscription) {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
@@ -141,16 +191,64 @@ export async function handleStripeWebhook(req: Request, res: Response) {
   try {
     switch (event.type) {
       case 'customer.subscription.created':
-      case 'customer.subscription.updated':
+        // DB only. The trial_started funnel event is emitted from
+        // checkout.session.completed so it fires exactly once with the email.
         await applySubscription(event.data.object as Stripe.Subscription);
         break;
-      case 'customer.subscription.deleted':
-        await cancelSubscription(event.data.object as Stripe.Subscription);
+
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as Stripe.Subscription;
+        const prev = event.data.previous_attributes as Partial<Stripe.Subscription> | undefined;
+        await applySubscription(sub);
+
+        // Trial -> paid (or any reactivation into active).
+        if (sub.status === 'active' && prev?.status && prev.status !== 'active') {
+          await emitForCustomer(subCustomerId(sub), 'subscription_active', {
+            subscriptionStatus: 'active',
+            currentPeriodEnd: unixToIso((sub as any).current_period_end),
+          });
+        } else if (sub.cancel_at_period_end === true && prev?.cancel_at_period_end === false) {
+          // User scheduled cancellation. While still trialing this is the
+          // "canceled the trial" signal the win-back / re-subscribe sequence needs.
+          await emitForCustomer(subCustomerId(sub), 'trial_canceled', {
+            subscriptionStatus: sub.status,
+            currentPeriodEnd: unixToIso((sub as any).current_period_end),
+          });
+        }
         break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const sub = event.data.object as Stripe.Subscription;
+        await cancelSubscription(sub);
+        await emitForCustomer(subCustomerId(sub), 'subscription_canceled', {
+          subscriptionStatus: 'canceled',
+        });
+        break;
+      }
+
+      case 'customer.subscription.trial_will_end': {
+        // Stripe fires this ~3 days before the trial ends.
+        const sub = event.data.object as Stripe.Subscription;
+        await emitForCustomer(subCustomerId(sub), 'trial_will_end', {
+          subscriptionStatus: sub.status,
+          trialEndsAt: unixToIso(sub.trial_end),
+        });
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer?.id ?? null);
+        if (customerId) await emitForCustomer(customerId, 'payment_failed', { subscriptionStatus: 'past_due' });
+        break;
+      }
+
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
-        // Payment Link carries our user id in client_reference_id. Link the
-        // Stripe customer (created by the link) to that user before applying.
+        // The session carries our user id in client_reference_id. Link the
+        // Stripe customer to that user before applying.
         const userId = session.client_reference_id;
         const customerId =
           typeof session.customer === 'string' ? session.customer : (session.customer?.id ?? null);
@@ -161,9 +259,35 @@ export async function handleStripeWebhook(req: Request, res: Response) {
           const subId = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
           const sub = await stripe.subscriptions.retrieve(subId);
           await applySubscription(sub);
+          // Single source of truth for "trial began" — fires once per checkout.
+          if (customerId) {
+            await emitForCustomer(customerId, 'trial_started', {
+              subscriptionStatus: sub.status,
+              trialEndsAt: unixToIso(sub.trial_end),
+              currentPeriodEnd: unixToIso((sub as any).current_period_end),
+            });
+          }
         }
         break;
       }
+
+      case 'checkout.session.expired': {
+        // Started Stripe Checkout but never completed = cart abandonment.
+        const session = event.data.object as Stripe.Checkout.Session;
+        const customerId =
+          typeof session.customer === 'string' ? session.customer : (session.customer?.id ?? null);
+        if (customerId) {
+          await emitForCustomer(customerId, 'checkout_abandoned');
+        } else if (session.customer_details?.email) {
+          // No linked customer (rare): fall back to the email Stripe captured.
+          await emitFunnelEvent('checkout_abandoned', {
+            email: session.customer_details.email,
+            userId: session.client_reference_id ?? null,
+          });
+        }
+        break;
+      }
+
       default:
         break;
     }

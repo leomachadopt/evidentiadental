@@ -76,6 +76,17 @@ o webhook usa o `client_reference_id` para ligar o Stripe customer ao utilizador
 Webhook Stripe em `/api/billing/webhook` (raw body, antes do `express.json`). Tudo no-op
 gracioso se `STRIPE_*` não estiver configurado.
 
+## Funil de marketing (n8n + MailerLite)
+
+`src/lib/marketing.ts` emite eventos do funil para um webhook do n8n (`N8N_WEBHOOK_URL`,
+no-op gracioso se não configurado). O n8n faz upsert do subscritor no MailerLite e atribui-o
+ao grupo da etapa; as automações do MailerLite (gatilho = entrada no grupo) enviam os emails.
+Eventos: `signup` (auth), `checkout_started` (billing) e, via webhook Stripe, `trial_started`,
+`trial_will_end`, `trial_canceled`, `subscription_active`, `payment_failed`,
+`subscription_canceled`, `checkout_abandoned` (de `checkout.session.expired`). Detalhes e
+passos de setup em `docs/marketing-funnel.md`. **Princípio:** uma falha de marketing nunca
+pode partir um signup ou um webhook Stripe — `emitFunnelEvent` engole erros.
+
 ## Workflow típico ao adicionar uma feature
 
 1. **Schema:** se precisar de DB change, criar migration com `npm run migrate:create nome_da_feature`

@@ -1,9 +1,13 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { query } from '../db/client.js';
 import { config } from '../lib/config.js';
 import { signToken, authRequired } from '../middleware/auth.js';
+import { emitFunnelEvent } from '../lib/marketing.js';
+
+const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 export const authRouter = Router();
 
@@ -38,6 +42,11 @@ authRouter.post('/register', async (req, res) => {
 
   const user = result.rows[0];
   const token = signToken({ userId: user.id, tier: user.subscription_tier });
+
+  // Top of the marketing funnel: hand the lead to n8n -> MailerLite. Awaited but
+  // never throws, so a marketing outage can't fail a signup.
+  await emitFunnelEvent('signup', { email, name, userId: user.id });
+
   res.json({
     token,
     user: { id: user.id, email, name, tier: user.subscription_tier, isAdmin: user.is_admin },
@@ -107,4 +116,64 @@ authRouter.get('/me', authRequired, async (req, res) => {
     currentPeriodEnd: u.current_period_end,
     hasAccess: u.is_admin || subscribed,
   });
+});
+
+// POST /api/auth/forgot-password — start a reset. Always returns 200 (even when
+// the email is unknown) so the endpoint can't be used to enumerate accounts.
+const ForgotSchema = z.object({ email: z.string().email() });
+
+authRouter.post('/forgot-password', async (req, res) => {
+  const parsed = ForgotSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { email } = parsed.data;
+  const result = await query<{ id: string; name: string | null }>(
+    'SELECT id, name FROM users WHERE email = $1',
+    [email],
+  );
+
+  if (result.rows.length > 0) {
+    const user = result.rows[0];
+    // Raw token goes only in the email link; we store only its hash.
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
+    await query(
+      'UPDATE users SET password_reset_token_hash = $1, password_reset_expires = $2 WHERE id = $3',
+      [hashToken(token), expires, user.id],
+    );
+    const resetUrl = `${config.FRONTEND_URL}/reset-password?token=${token}`;
+    await emitFunnelEvent('password_reset', { email, name: user.name, userId: user.id, resetUrl });
+  }
+
+  res.json({ ok: true });
+});
+
+// POST /api/auth/reset-password — consume the token and set a new password.
+const ResetSchema = z.object({ token: z.string().min(1), password: z.string().min(8) });
+
+authRouter.post('/reset-password', async (req, res) => {
+  const parsed = ResetSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { token, password } = parsed.data;
+  const result = await query<{ id: string }>(
+    `SELECT id FROM users
+      WHERE password_reset_token_hash = $1 AND password_reset_expires > NOW()`,
+    [hashToken(token)],
+  );
+  if (result.rows.length === 0) {
+    return res.status(400).json({ error: 'Token inválido ou expirado. Pede um novo link.' });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await query(
+    `UPDATE users
+        SET password_hash = $1,
+            password_reset_token_hash = NULL,
+            password_reset_expires = NULL
+      WHERE id = $2`,
+    [passwordHash, result.rows[0].id],
+  );
+
+  res.json({ ok: true });
 });

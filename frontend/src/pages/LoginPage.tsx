@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { ShieldCheck, Search, FileText, Loader2 } from 'lucide-react';
 import { api, setToken } from '../lib/api';
@@ -146,6 +146,15 @@ export function LoginPage() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? 'Entrar' : 'Criar conta'}
           </button>
         </form>
+
+        {mode === 'login' && (
+          <Link
+            to="/forgot-password"
+            className="mt-3 block text-center text-sm text-slate-500 transition hover:text-primary-700"
+          >
+            Esqueceste-te da password?
+          </Link>
+        )}
 
         <button
           type="button"

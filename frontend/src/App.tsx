@@ -4,6 +4,8 @@ import { Menu, X, LogOut } from 'lucide-react';
 import { NewSearchPage } from './pages/NewSearchPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { LoginPage } from './pages/LoginPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { LandingPage } from './pages/LandingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
@@ -131,6 +133,8 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route
             path="/"
             element={authed ? <RequireAccess hasAccess={me?.hasAccess}><NewSearchPage /></RequireAccess> : <LandingPage />}
