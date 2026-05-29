@@ -9,6 +9,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { LandingPage } from './pages/LandingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
+import { FriendsPage } from './pages/FriendsPage';
 import { BillingPage } from './pages/BillingPage';
 import { AdminPage } from './pages/AdminPage';
 import { MeshBackground } from './components/MeshBackground';
@@ -35,6 +36,7 @@ const NAV = [
   { to: '/', label: 'Nova busca' },
   { to: '/history', label: 'Histórico' },
   { to: '/library', label: 'Biblioteca' },
+  { to: '/friends', label: 'Colegas' },
   { to: '/billing', label: 'Conta' },
 ];
 
@@ -139,6 +141,7 @@ export default function App() {
           />
           <Route path="/history" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><HistoryPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/library" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><LibraryPage /></RequireAccess></ProtectedRoute>} />
+          <Route path="/friends" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><FriendsPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
           <Route path="/searches/:id" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><SearchResultsPage /></RequireAccess></ProtectedRoute>} />
