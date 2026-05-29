@@ -281,6 +281,12 @@ export const api = {
   removeFriend: (friendId: string) =>
     request<{ ok: boolean }>(`/api/friends/${friendId}`, { method: 'DELETE' }),
   friendActivity: () => request<{ activity: FriendActivityItem[] }>('/api/friends/activity'),
+  friendProfile: (friendId: string) =>
+    request<{
+      profile: { id: string; name: string | null; speciality: string | null; city: string | null; avatar_url: string | null };
+      sharesActivity: boolean;
+      items: FriendActivityItem[];
+    }>(`/api/friends/${friendId}/profile`),
   importFromFriend: (paperId: string, collectionId?: string) =>
     request<{ id: string }>('/api/friends/import', {
       method: 'POST',

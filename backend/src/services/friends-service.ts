@@ -208,7 +208,11 @@ export async function searchUsers(userId: string, term: string): Promise<UserSea
          OR (f.requester_id = u.id AND f.addressee_id = $1)
       WHERE u.id <> $1
         AND u.discoverable = TRUE
-        AND u.name ILIKE '%' || $2 || '%'
+        AND (
+          u.name ILIKE '%' || $2 || '%'
+          OR u.speciality ILIKE '%' || $2 || '%'
+          OR u.city ILIKE '%' || $2 || '%'
+        )
       ORDER BY u.name
       LIMIT 20`,
     [userId, q],
@@ -257,6 +261,61 @@ export async function friendActivity(userId: string, limit = 50): Promise<Activi
     [userId, limit],
   );
   return r.rows;
+}
+
+export interface FriendProfile {
+  id: string;
+  name: string | null;
+  speciality: string | null;
+  city: string | null;
+  avatar_url: string | null;
+}
+
+/**
+ * A single colleague's profile plus their saved-papers history (only theirs).
+ * Returns null if they aren't an accepted friend. `sharesActivity` is false
+ * (and items empty) when the colleague hasn't opted in to share their activity.
+ */
+export async function friendProfile(
+  userId: string,
+  friendId: string,
+): Promise<{ profile: FriendProfile; sharesActivity: boolean; items: ActivityItem[] } | null> {
+  const friends = await query(
+    `SELECT 1 FROM friendships
+      WHERE status = 'accepted'
+        AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
+    [userId, friendId],
+  );
+  if (friends.rows.length === 0) return null;
+
+  const u = await query<FriendProfile & { share_library_activity: boolean }>(
+    `SELECT id, name, speciality, city, avatar_url, share_library_activity
+       FROM users WHERE id = $1`,
+    [friendId],
+  );
+  if (u.rows.length === 0) return null;
+  const { share_library_activity, ...profile } = u.rows[0];
+  if (!share_library_activity) return { profile, sharesActivity: false, items: [] };
+
+  const items = await query<ActivityItem>(
+    `SELECT li.added_at, p.id AS paper_id, p.pmid, p.doi, p.title, p.authors,
+            p.journal, p.year, p.is_open_access,
+            u.id AS friend_id, u.name AS friend_name, u.avatar_url AS friend_avatar,
+            (li.pdf_url IS NOT NULL) AS friend_has_pdf,
+            u.accept_pdf_requests AS friend_accepts_requests,
+            EXISTS (
+              SELECT 1 FROM library_items mine
+               WHERE mine.user_id = $1 AND mine.paper_id = p.id
+            ) AS in_my_library
+       FROM library_items li
+       JOIN users u  ON u.id = li.user_id
+       JOIN papers p ON p.id = li.paper_id
+      WHERE li.user_id = $2
+      ORDER BY li.added_at DESC
+      LIMIT 200`,
+    [userId, friendId],
+  );
+  return { profile, sharesActivity: true, items: items.rows };
 }
 
 // ----------------------------------------------------------------------------
