@@ -1,0 +1,143 @@
+import { Router } from 'express';
+import { z } from 'zod';
+import { authRequired } from '../middleware/auth.js';
+import { query } from '../db/client.js';
+import { addToLibrary } from '../services/library-service.js';
+import {
+  sendFriendRequest,
+  respondFriendRequest,
+  listFriends,
+  listPendingIncoming,
+  removeFriend,
+  friendActivity,
+  createPdfRequest,
+  listIncomingPdfRequests,
+  resolvePdfRequest,
+} from '../services/friends-service.js';
+
+export const friendsRouter = Router();
+friendsRouter.use(authRequired);
+
+/** Best-effort product analytics; never blocks the request. */
+async function track(userId: string, eventType: string, resourceId?: string) {
+  try {
+    await query(
+      `INSERT INTO usage_events (user_id, event_type, resource_id) VALUES ($1, $2, $3)`,
+      [userId, eventType, resourceId ?? null],
+    );
+  } catch (e: any) {
+    console.error('[friends] usage track failed:', e?.message ?? e);
+  }
+}
+
+// ============================================================
+// Friendship graph
+// ============================================================
+
+// GET /api/friends — accepted friends
+friendsRouter.get('/', async (req, res) => {
+  res.json({ friends: await listFriends(req.userId!) });
+});
+
+// GET /api/friends/requests/incoming — pending friend requests received
+friendsRouter.get('/requests/incoming', async (req, res) => {
+  res.json({ requests: await listPendingIncoming(req.userId!) });
+});
+
+// POST /api/friends/requests { email } — send a friend request
+friendsRouter.post('/requests', async (req, res) => {
+  const schema = z.object({ email: z.string().trim().email() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { status } = await sendFriendRequest(req.userId!, parsed.data.email);
+  if (status === 'not_found') return res.status(404).json({ error: 'Nenhum utilizador com esse email.' });
+  if (status === 'self') return res.status(400).json({ error: 'Não te podes adicionar a ti próprio.' });
+  if (status === 'blocked') return res.status(409).json({ error: 'Não é possível adicionar este utilizador.' });
+  res.json({ status });
+});
+
+// POST /api/friends/requests/:id/respond { accept }
+friendsRouter.post('/requests/:id/respond', async (req, res) => {
+  const schema = z.object({ accept: z.boolean() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const ok = await respondFriendRequest(req.userId!, req.params.id, parsed.data.accept);
+  if (!ok) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  res.json({ ok: true });
+});
+
+// DELETE /api/friends/:friendId — remove a friend
+friendsRouter.delete('/:friendId', async (req, res) => {
+  const ok = await removeFriend(req.userId!, req.params.friendId);
+  if (!ok) return res.status(404).json({ error: 'Amigo não encontrado.' });
+  res.json({ ok: true });
+});
+
+// ============================================================
+// Activity feed + import
+// ============================================================
+
+// GET /api/friends/activity — friends' recent saves (no private notes)
+friendsRouter.get('/activity', async (req, res) => {
+  res.json({ activity: await friendActivity(req.userId!) });
+});
+
+// POST /api/friends/import { paperId, collectionId? } — import metadata only
+friendsRouter.post('/import', async (req, res) => {
+  const schema = z.object({
+    paperId: z.string().uuid(),
+    collectionId: z.string().uuid().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const item = await addToLibrary(req.userId!, {
+    paperId: parsed.data.paperId,
+    collectionId: parsed.data.collectionId,
+  });
+  await track(req.userId!, 'friend_import', parsed.data.paperId);
+  res.json(item);
+});
+
+// ============================================================
+// PDF requests ("reprint" — file moves off-platform)
+// ============================================================
+
+// POST /api/friends/pdf-requests { paperId, ownerId } — returns external deep-link
+friendsRouter.post('/pdf-requests', async (req, res) => {
+  const schema = z.object({ paperId: z.string().uuid(), ownerId: z.string().uuid() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const out = await createPdfRequest(req.userId!, parsed.data);
+  if (!out.ok) {
+    const messages: Record<string, string> = {
+      not_friends: 'Só podes pedir PDFs a amigos.',
+      not_accepting: 'Este colega não está a aceitar pedidos de PDF.',
+      open_access: 'Este artigo é de acesso aberto — usa o acesso direto.',
+      no_pdf: 'O teu colega já não tem o PDF deste artigo.',
+    };
+    const code = out.reason === 'not_friends' ? 403 : out.reason === 'not_accepting' ? 403 : 409;
+    return res.status(code).json({ error: messages[out.reason] });
+  }
+  await track(req.userId!, 'pdf_request', parsed.data.paperId);
+  res.json(out.result);
+});
+
+// GET /api/friends/pdf-requests/incoming — requests others made to me
+friendsRouter.get('/pdf-requests/incoming', async (req, res) => {
+  res.json({ requests: await listIncomingPdfRequests(req.userId!) });
+});
+
+// PATCH /api/friends/pdf-requests/:id { status } — fulfilled / declined
+friendsRouter.patch('/pdf-requests/:id', async (req, res) => {
+  const schema = z.object({ status: z.enum(['fulfilled', 'declined']) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const ok = await resolvePdfRequest(req.userId!, req.params.id, parsed.data.status);
+  if (!ok) return res.status(404).json({ error: 'Pedido não encontrado.' });
+  res.json({ ok: true });
+});

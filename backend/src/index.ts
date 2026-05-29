@@ -9,6 +9,7 @@ import { billingRouter, handleStripeWebhook } from './routes/billing.js';
 import { handleBlobUpload } from './routes/uploads.js';
 import { papersRouter } from './routes/papers.js';
 import { settingsRouter } from './routes/settings.js';
+import { friendsRouter } from './routes/friends.js';
 import { adminRouter } from './routes/admin.js';
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/library', libraryRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/papers', papersRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/friends', friendsRouter);
 app.use('/api/admin', adminRouter);
 
 // Error handler

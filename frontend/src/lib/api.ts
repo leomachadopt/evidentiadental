@@ -65,6 +65,58 @@ async function openInNewTab(path: string) {
   window.open(url, '_blank');
 }
 
+export interface Settings {
+  libkeyLibraryId: string | null;
+  ezproxyPrefix: string | null;
+  shareLibraryActivity: boolean;
+  acceptPdfRequests: boolean;
+  whatsappNumber: string | null;
+}
+
+export interface Friend {
+  friendship_id: string;
+  id: string;
+  name: string | null;
+  email: string;
+  since: string;
+}
+
+export interface PendingFriendRequest {
+  friendship_id: string;
+  id: string;
+  name: string | null;
+  email: string;
+  created_at: string;
+}
+
+export interface FriendActivityItem {
+  added_at: string;
+  paper_id: string;
+  pmid: string | null;
+  doi: string | null;
+  title: string;
+  authors: any;
+  journal: string | null;
+  year: number | null;
+  is_open_access: boolean;
+  friend_id: string;
+  friend_name: string | null;
+  friend_has_pdf: boolean;
+  friend_accepts_requests: boolean;
+  in_my_library: boolean;
+}
+
+export interface IncomingPdfRequest {
+  id: string;
+  status: string;
+  channel: string;
+  created_at: string;
+  requester_name: string | null;
+  requester_email: string;
+  title: string;
+  pmid: string | null;
+}
+
 export const api = {
   // Auth
   register: (body: { email: string; password: string; name?: string; speciality?: string }) =>
@@ -175,13 +227,40 @@ export const api = {
       isOpenAccess: boolean;
     }>(`/api/papers/${paperId}/access`),
 
-  // Institutional access settings
-  getSettings: () =>
-    request<{ libkeyLibraryId: string | null; ezproxyPrefix: string | null }>('/api/settings'),
-  updateSettings: (body: { libkeyLibraryId?: string | null; ezproxyPrefix?: string | null }) =>
-    request<{ libkeyLibraryId: string | null; ezproxyPrefix: string | null }>('/api/settings', {
+  // Institutional access + social/privacy settings
+  getSettings: () => request<Settings>('/api/settings'),
+  updateSettings: (body: Partial<Settings>) =>
+    request<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // Friends (social layer)
+  listFriends: () => request<{ friends: Friend[] }>('/api/friends'),
+  listFriendRequests: () => request<{ requests: PendingFriendRequest[] }>('/api/friends/requests/incoming'),
+  addFriend: (email: string) =>
+    request<{ status: string }>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ email }) }),
+  respondFriendRequest: (id: string, accept: boolean) =>
+    request<{ ok: boolean }>(`/api/friends/requests/${id}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ accept }),
+    }),
+  removeFriend: (friendId: string) =>
+    request<{ ok: boolean }>(`/api/friends/${friendId}`, { method: 'DELETE' }),
+  friendActivity: () => request<{ activity: FriendActivityItem[] }>('/api/friends/activity'),
+  importFromFriend: (paperId: string, collectionId?: string) =>
+    request<{ id: string }>('/api/friends/import', {
+      method: 'POST',
+      body: JSON.stringify(collectionId ? { paperId, collectionId } : { paperId }),
+    }),
+  requestPdf: (paperId: string, ownerId: string) =>
+    request<{ id: string; channel: 'whatsapp' | 'email'; deeplink: string; ownerName: string | null }>(
+      '/api/friends/pdf-requests',
+      { method: 'POST', body: JSON.stringify({ paperId, ownerId }) },
+    ),
+  incomingPdfRequests: () =>
+    request<{ requests: IncomingPdfRequest[] }>('/api/friends/pdf-requests/incoming'),
+  resolvePdfRequest: (id: string, status: 'fulfilled' | 'declined') =>
+    request<{ ok: boolean }>(`/api/friends/pdf-requests/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ status }),
     }),
 
   // Current user + access state (source of truth for gating)
