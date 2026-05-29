@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { put } from '@vercel/blob';
 import { authRequired } from '../middleware/auth.js';
 import { query } from '../db/client.js';
-import { addToLibrary } from '../services/library-service.js';
+import { config } from '../lib/config.js';
+import { addToLibrary, attachPdf } from '../services/library-service.js';
 import {
   sendFriendRequest,
   sendFriendRequestById,
@@ -13,6 +15,7 @@ import {
   removeFriend,
   friendActivity,
   friendProfile,
+  getImportablePdf,
   createPdfRequest,
   listIncomingPdfRequests,
   resolvePdfRequest,
@@ -107,10 +110,28 @@ friendsRouter.get('/:friendId/profile', async (req, res) => {
   res.json(data);
 });
 
-// POST /api/friends/import { paperId, collectionId? } — import metadata only
+/** Duplicate a (public, OA) PDF blob into our own storage; returns the new URL. */
+async function copyPdfBlob(srcUrl: string, name: string | null): Promise<{ url: string; size: number }> {
+  const res = await fetch(srcUrl);
+  if (!res.ok) throw new Error(`fetch blob ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  const safe = (name ?? 'artigo.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const blob = await put(`library/import/${Date.now()}-${safe}`, buf, {
+    access: 'public',
+    contentType: 'application/pdf',
+    token: config.BLOB_READ_WRITE_TOKEN!,
+  });
+  return { url: blob.url, size: buf.length };
+}
+
+// POST /api/friends/import { paperId, ownerId?, collectionId? }
+// Imports metadata; for OPEN-ACCESS papers where the friend (ownerId) has an
+// uploaded PDF, also copies that file into the importer's own blob so the copy
+// is independent. Paywalled papers are NEVER copied (handled in getImportablePdf).
 friendsRouter.post('/import', async (req, res) => {
   const schema = z.object({
     paperId: z.string().uuid(),
+    ownerId: z.string().uuid().optional(),
     collectionId: z.string().uuid().optional(),
   });
   const parsed = schema.safeParse(req.body);
@@ -120,6 +141,24 @@ friendsRouter.post('/import', async (req, res) => {
     paperId: parsed.data.paperId,
     collectionId: parsed.data.collectionId,
   });
+
+  // Best-effort: copy the friend's OA PDF into the importer's own storage.
+  if (parsed.data.ownerId && config.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const src = await getImportablePdf(req.userId!, parsed.data.ownerId, parsed.data.paperId);
+      if (src) {
+        const copied = await copyPdfBlob(src.url, src.name);
+        await attachPdf(req.userId!, item.id, {
+          url: copied.url,
+          name: src.name ?? 'artigo.pdf',
+          size: src.size ?? copied.size,
+        });
+      }
+    } catch (e: any) {
+      console.error('[friends] OA pdf copy failed:', e?.message ?? e);
+    }
+  }
+
   await track(req.userId!, 'friend_import', parsed.data.paperId);
   res.json(item);
 });

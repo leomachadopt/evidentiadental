@@ -31,7 +31,7 @@ export function SavedArticleCard({
   importing?: boolean;
   onOpenOA: (paperId: string) => void;
   onAskPdf: (paperId: string, ownerId: string) => void;
-  onImport: (paperId: string) => void;
+  onImport: (paperId: string, ownerId: string) => void;
 }) {
   return (
     <li className="card">
@@ -86,7 +86,11 @@ export function SavedArticleCard({
             <Check className="h-3.5 w-3.5" /> Na tua biblioteca
           </span>
         ) : (
-          <button className="btn-primary text-xs" onClick={() => onImport(it.paper_id)} disabled={importing}>
+          <button
+            className="btn-primary text-xs"
+            onClick={() => onImport(it.paper_id, it.friend_id)}
+            disabled={importing}
+          >
             <Download className="h-3.5 w-3.5" /> Adicionar à biblioteca
           </button>
         )}
