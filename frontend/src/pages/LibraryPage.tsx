@@ -356,10 +356,10 @@ export function LibraryPage() {
                       {!item.pdf_url && !item.is_open_access && item.colleague_id && (
                         <button
                           onClick={() => askColleaguePdf(item.paper_id, item.colleague_id)}
-                          className="inline-flex items-center gap-1 text-primary-600 hover:underline"
+                          className="inline-flex items-center gap-1.5 rounded-full bg-primary-600 px-3 py-1 font-medium text-white shadow-sm transition hover:bg-primary-700"
                           title="Pedir o PDF a um colega que o tem"
                         >
-                          <Send className="h-3 w-3" /> Pedir PDF a {item.colleague_name ?? 'colega'}
+                          <Send className="h-3.5 w-3.5" /> Pedir PDF a {item.colleague_name ?? 'colega'}
                         </button>
                       )}
                     </div>
