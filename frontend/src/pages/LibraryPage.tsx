@@ -11,6 +11,10 @@ import {
   Upload,
   Loader2,
   X,
+  Search,
+  StickyNote,
+  Save,
+  Calendar,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { FullTextAccess } from '../components/FullTextAccess';
@@ -21,6 +25,15 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function parseAuthors(a: any): any[] {
+  return typeof a === 'string' ? JSON.parse(a) : a ?? [];
+}
+
 export function LibraryPage() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<string | undefined>(undefined); // collectionId; undefined = Todos
@@ -29,18 +42,22 @@ export function LibraryPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Search + filters (client-side over the full library)
+  const [search, setSearch] = useState('');
+  const [onlyOA, setOnlyOA] = useState(false);
+  const [onlyPdf, setOnlyPdf] = useState(false);
+  const [sort, setSort] = useState<'recent' | 'old'>('recent');
+
   const { data: colData } = useQuery({ queryKey: ['collections'], queryFn: () => api.listCollections() });
   const collections = colData?.collections ?? [];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['library', selected],
-    queryFn: () => api.listLibrary(selected ? { collectionId: selected } : {}),
-  });
-  const items = data?.items ?? [];
+  const { data, isLoading } = useQuery({ queryKey: ['library'], queryFn: () => api.listLibrary({}) });
+  const allItems: any[] = data?.items ?? [];
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['library'] });
     qc.invalidateQueries({ queryKey: ['collections'] });
+    qc.invalidateQueries({ queryKey: ['library-ids'] });
   };
 
   const createMut = useMutation({
@@ -64,6 +81,10 @@ export function LibraryPage() {
   });
   const removeMut = useMutation({ mutationFn: (id: string) => api.removeLibraryItem(id), onSuccess: invalidate });
   const removePdfMut = useMutation({ mutationFn: (id: string) => api.removePdf(id), onSuccess: invalidate });
+  const noteMut = useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string }) => api.updateLibraryItem(id, { note }),
+    onSuccess: invalidate,
+  });
 
   async function handleUpload(itemId: string, file?: File | null) {
     if (!file) return;
@@ -83,12 +104,29 @@ export function LibraryPage() {
   const selectedCol = collections.find((c) => c.id === selected);
   const canManage = selectedCol && selectedCol.name !== 'Inbox';
 
+  const q = search.trim().toLowerCase();
+  const items = allItems
+    .filter((i) => (selected ? i.collection_id === selected : true))
+    .filter((i) => (onlyOA ? i.is_open_access : true))
+    .filter((i) => (onlyPdf ? !!i.pdf_url : true))
+    .filter((i) => {
+      if (!q) return true;
+      const authors = parseAuthors(i.authors).map((a: any) => a.name).join(' ');
+      return [i.title, i.journal, authors, i.note, i.pmid, String(i.year ?? '')]
+        .some((f) => (f ?? '').toString().toLowerCase().includes(q));
+    })
+    .sort((a, b) => {
+      const da = new Date(a.added_at).getTime();
+      const db = new Date(b.added_at).getTime();
+      return sort === 'recent' ? db - da : da - db;
+    });
+
   return (
     <div className="animate-fade-up">
       <h1 className="mb-6 text-2xl font-semibold tracking-tight">A minha biblioteca</h1>
 
       {/* Folder chips */}
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => setSelected(undefined)}
           className={`rounded-full border px-3 py-1.5 text-xs transition ${
@@ -165,20 +203,57 @@ export function LibraryPage() {
         )}
       </div>
 
+      {/* Search + filters */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[12rem]">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Pesquisar por título, autor, revista, nota ou PMID…"
+            className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-primary-400 focus:outline-none"
+          />
+        </div>
+        <button
+          onClick={() => setOnlyOA((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs transition ${
+            onlyOA ? 'border-emerald-600 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300'
+          }`}
+        >
+          Open access
+        </button>
+        <button
+          onClick={() => setOnlyPdf((v) => !v)}
+          className={`rounded-full border px-3 py-1.5 text-xs transition ${
+            onlyPdf ? 'border-primary-600 bg-primary-50 text-primary-700' : 'border-slate-200 bg-white text-slate-600 hover:border-primary-300'
+          }`}
+        >
+          Com PDF
+        </button>
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as 'recent' | 'old')}
+          className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-primary-400 focus:outline-none"
+        >
+          <option value="recent">Mais recentes</option>
+          <option value="old">Mais antigos</option>
+        </select>
+      </div>
+
       {error && <div className="mb-4 text-sm text-red-600">{error}</div>}
 
       {isLoading ? (
         <div className="py-8 text-center text-slate-500">A carregar...</div>
-      ) : items.length === 0 ? (
+      ) : allItems.length === 0 ? (
         <p className="text-slate-500">
-          {selected ? 'Esta pasta está vazia.' : 'Ainda não guardaste papers. Usa o botão '}
-          {!selected && <strong>Guardar</strong>}
-          {!selected && ' nos resultados de uma busca.'}
+          Ainda não guardaste papers. Usa o botão <strong>Guardar</strong> nos resultados de uma busca.
         </p>
+      ) : items.length === 0 ? (
+        <p className="text-slate-500">Nenhum artigo corresponde aos filtros.</p>
       ) : (
         <div className="space-y-3">
           {items.map((item: any) => {
-            const authors = typeof item.authors === 'string' ? JSON.parse(item.authors) : item.authors ?? [];
+            const authors = parseAuthors(item.authors);
             const authorsStr =
               authors.slice(0, 3).map((a: any) => a.name).join(', ') + (authors.length > 3 ? ' et al' : '');
             const isUploading = uploadingId === item.id;
@@ -187,8 +262,13 @@ export function LibraryPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-medium leading-snug text-slate-900">{item.title}</h3>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {authorsStr} · {item.journal} · {item.year}
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                      <span>{authorsStr} · {item.journal} · {item.year}</span>
+                      {item.added_at && (
+                        <span className="inline-flex items-center gap-1 text-slate-400">
+                          <Calendar className="h-3 w-3" /> Guardado a {formatDate(item.added_at)}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
                       {item.pmid && (
@@ -211,7 +291,6 @@ export function LibraryPage() {
                           <Unlock className="h-3 w-3" /> PDF grátis
                         </a>
                       )}
-                      {/* Uploaded PDF */}
                       {item.pdf_url ? (
                         <span className="inline-flex items-center gap-1">
                           <a
@@ -244,11 +323,18 @@ export function LibraryPage() {
                         </label>
                       )}
                     </div>
+
+                    <NoteEditor
+                      key={item.note ?? ''}
+                      note={item.note}
+                      saving={noteMut.isPending}
+                      onSave={(note) => noteMut.mutate({ id: item.id, note })}
+                    />
+
                     <FullTextAccess paperId={item.paper_id} />
                   </div>
 
                   <div className="flex shrink-0 flex-col items-end gap-2">
-                    {/* Move between folders */}
                     <select
                       value={item.collection_id ?? ''}
                       onChange={(e) => moveMut.mutate({ id: item.id, collectionId: e.target.value })}
@@ -275,6 +361,67 @@ export function LibraryPage() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function NoteEditor({
+  note,
+  saving,
+  onSave,
+}: {
+  note: string | null;
+  saving: boolean;
+  onSave: (note: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(note ?? '');
+
+  if (!editing) {
+    return note ? (
+      <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/70 px-3 py-2 text-sm text-slate-700">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-500">
+            <StickyNote className="h-3 w-3" /> Nota
+          </span>
+          <button onClick={() => { setText(note); setEditing(true); }} className="text-xs text-primary-600 hover:underline">
+            Editar
+          </button>
+        </div>
+        <p className="whitespace-pre-wrap">{note}</p>
+      </div>
+    ) : (
+      <button
+        onClick={() => { setText(''); setEditing(true); }}
+        className="mt-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-primary-700"
+      >
+        <StickyNote className="h-3 w-3" /> Adicionar nota
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={3}
+        placeholder="Escreve uma nota sobre este artigo…"
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-400 focus:outline-none"
+      />
+      <div className="mt-1 flex items-center gap-2">
+        <button
+          onClick={() => { onSave(text.trim()); setEditing(false); }}
+          disabled={saving}
+          className="inline-flex items-center gap-1 rounded-md bg-primary-600 px-3 py-1.5 text-xs text-white disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Guardar nota
+        </button>
+        <button onClick={() => setEditing(false)} className="text-xs text-slate-500 hover:text-slate-700">
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import {
   Loader2,
@@ -21,6 +21,7 @@ import { FullTextAccess } from '../components/FullTextAccess';
 
 export function SearchResultsPage() {
   const { id } = useParams<{ id: string }>();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [synthesis, setSynthesis] = useState<any>(null);
@@ -33,6 +34,11 @@ export function SearchResultsPage() {
     refetchInterval: (q) => (q.state.data?.search?.status === 'querying' ? 2000 : false),
   });
 
+  // Which papers are already in the library — so the "Guardado" badge persists
+  // across reloads and shows up when revisiting a search from the history.
+  const { data: libraryData } = useQuery({ queryKey: ['library-ids'], queryFn: () => api.listLibrary({}) });
+  const libIds = new Set<string>((libraryData?.items ?? []).map((i: any) => i.paper_id));
+
   const executeMutation = useMutation({
     mutationFn: () => api.executeSearch(id!, 30),
     onSuccess: () => refetch(),
@@ -44,8 +50,19 @@ export function SearchResultsPage() {
   });
 
   async function saveToLibrary(paperId: string) {
-    await api.addToLibrary({ paperId });
-    setSavedIds((prev) => new Set(prev).add(paperId));
+    setSavedIds((prev) => new Set(prev).add(paperId)); // optimistic
+    try {
+      await api.addToLibrary({ paperId });
+      queryClient.invalidateQueries({ queryKey: ['library-ids'] });
+      queryClient.invalidateQueries({ queryKey: ['library'] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+    } catch {
+      setSavedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(paperId);
+        return next;
+      });
+    }
   }
 
   // Auto-execute if status is pico_ready
@@ -164,7 +181,7 @@ export function SearchResultsPage() {
                 key={r.result_id}
                 result={r}
                 selected={selectedIds.has(r.paper_id)}
-                saved={savedIds.has(r.paper_id)}
+                saved={savedIds.has(r.paper_id) || libIds.has(r.paper_id)}
                 onToggle={() => {
                   const next = new Set(selectedIds);
                   if (next.has(r.paper_id)) next.delete(r.paper_id);
