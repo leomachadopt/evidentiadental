@@ -6,15 +6,13 @@ import { query } from '../db/client.js';
 import { config } from '../lib/config.js';
 import { addToLibrary, attachPdf } from '../services/library-service.js';
 import {
-  sendFriendRequest,
-  sendFriendRequestById,
+  followUser,
+  unfollowUser,
+  listFollowing,
+  listFollowers,
   searchUsers,
-  respondFriendRequest,
-  listFriends,
-  listPendingIncoming,
-  removeFriend,
   friendActivity,
-  friendProfile,
+  userProfile,
   getImportablePdf,
   createPdfRequest,
   listIncomingPdfRequests,
@@ -37,78 +35,60 @@ async function track(userId: string, eventType: string, resourceId?: string) {
 }
 
 // ============================================================
-// Friendship graph
+// Follow graph
 // ============================================================
 
-// GET /api/friends — accepted friends
-friendsRouter.get('/', async (req, res) => {
-  res.json({ friends: await listFriends(req.userId!) });
+// GET /api/friends/following — people I follow (with follows_me)
+friendsRouter.get('/following', async (req, res) => {
+  res.json({ following: await listFollowing(req.userId!) });
 });
 
-// GET /api/friends/search?q= — find discoverable users by name (no email exposed)
+// GET /api/friends/followers — people who follow me (with i_follow)
+friendsRouter.get('/followers', async (req, res) => {
+  res.json({ followers: await listFollowers(req.userId!) });
+});
+
+// GET /api/friends/search?q= — find discoverable users by name/speciality/city
 friendsRouter.get('/search', async (req, res) => {
   const q = typeof req.query.q === 'string' ? req.query.q : '';
   res.json({ results: await searchUsers(req.userId!, q) });
 });
 
-// GET /api/friends/requests/incoming — pending friend requests received
-friendsRouter.get('/requests/incoming', async (req, res) => {
-  res.json({ requests: await listPendingIncoming(req.userId!) });
-});
-
-// POST /api/friends/requests { email | userId } — send a friend request
-friendsRouter.post('/requests', async (req, res) => {
-  const schema = z
-    .object({
-      email: z.string().trim().email().optional(),
-      userId: z.string().uuid().optional(),
-    })
-    .refine((d) => !!d.email || !!d.userId, { message: 'email ou userId é obrigatório' });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-  const { status } = parsed.data.userId
-    ? await sendFriendRequestById(req.userId!, parsed.data.userId)
-    : await sendFriendRequest(req.userId!, parsed.data.email!);
-  if (status === 'not_found') return res.status(404).json({ error: 'Utilizador não encontrado.' });
-  if (status === 'self') return res.status(400).json({ error: 'Não te podes adicionar a ti próprio.' });
-  if (status === 'blocked') return res.status(409).json({ error: 'Não é possível adicionar este utilizador.' });
-  res.json({ status });
-});
-
-// POST /api/friends/requests/:id/respond { accept }
-friendsRouter.post('/requests/:id/respond', async (req, res) => {
-  const schema = z.object({ accept: z.boolean() });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-
-  const ok = await respondFriendRequest(req.userId!, req.params.id, parsed.data.accept);
-  if (!ok) return res.status(404).json({ error: 'Pedido não encontrado.' });
-  res.json({ ok: true });
-});
-
-// DELETE /api/friends/:friendId — remove a friend
-friendsRouter.delete('/:friendId', async (req, res) => {
-  const ok = await removeFriend(req.userId!, req.params.friendId);
-  if (!ok) return res.status(404).json({ error: 'Amigo não encontrado.' });
-  res.json({ ok: true });
-});
-
-// ============================================================
-// Activity feed + import
-// ============================================================
-
-// GET /api/friends/activity — friends' recent saves (no private notes)
+// GET /api/friends/activity — saves of people I follow (no private notes)
 friendsRouter.get('/activity', async (req, res) => {
   res.json({ activity: await friendActivity(req.userId!) });
 });
 
-// GET /api/friends/:friendId/profile — one colleague's profile + their saves
-friendsRouter.get('/:friendId/profile', async (req, res) => {
-  const data = await friendProfile(req.userId!, req.params.friendId);
-  if (!data) return res.status(404).json({ error: 'Colega não encontrado.' });
+// POST /api/friends/follow { userId } — start following (instant)
+friendsRouter.post('/follow', async (req, res) => {
+  const schema = z.object({ userId: z.string().uuid() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { status } = await followUser(req.userId!, parsed.data.userId);
+  if (status === 'self') return res.status(400).json({ error: 'Não te podes seguir a ti próprio.' });
+  if (status === 'not_found') return res.status(404).json({ error: 'Utilizador não encontrado.' });
+  if (status === 'followed') await track(req.userId!, 'follow', parsed.data.userId);
+  res.json({ status });
+});
+
+// DELETE /api/friends/follow/:userId — stop following
+friendsRouter.delete('/follow/:userId', async (req, res) => {
+  const ok = await unfollowUser(req.userId!, req.params.userId);
+  if (!ok) return res.status(404).json({ error: 'Não seguias este utilizador.' });
+  res.json({ ok: true });
+});
+
+// GET /api/friends/:userId/profile — a user's profile + their saves (if visible)
+friendsRouter.get('/:userId/profile', async (req, res) => {
+  const data = await userProfile(req.userId!, req.params.userId);
+  if (!data) return res.status(404).json({ error: 'Utilizador não encontrado.' });
   res.json(data);
 });
+
+// ============================================================
+// Import (metadata; copies the friend's OA PDF into our own blob)
+// ============================================================
 
 /** Duplicate a (public, OA) PDF blob into our own storage; returns the new URL. */
 async function copyPdfBlob(srcUrl: string, name: string | null): Promise<{ url: string; size: number }> {
@@ -125,9 +105,6 @@ async function copyPdfBlob(srcUrl: string, name: string | null): Promise<{ url: 
 }
 
 // POST /api/friends/import { paperId, ownerId?, collectionId? }
-// Imports metadata; for OPEN-ACCESS papers where the friend (ownerId) has an
-// uploaded PDF, also copies that file into the importer's own blob so the copy
-// is independent. Paywalled papers are NEVER copied (handled in getImportablePdf).
 friendsRouter.post('/import', async (req, res) => {
   const schema = z.object({
     paperId: z.string().uuid(),
@@ -164,7 +141,7 @@ friendsRouter.post('/import', async (req, res) => {
 });
 
 // ============================================================
-// PDF requests ("reprint" — file moves off-platform)
+// PDF requests ("reprint" — mutual follow required, file moves off-platform)
 // ============================================================
 
 // POST /api/friends/pdf-requests { paperId, ownerId } — returns external deep-link
@@ -176,12 +153,12 @@ friendsRouter.post('/pdf-requests', async (req, res) => {
   const out = await createPdfRequest(req.userId!, parsed.data);
   if (!out.ok) {
     const messages: Record<string, string> = {
-      not_friends: 'Só podes pedir PDFs a amigos.',
+      not_mutual: 'Só podes pedir PDFs a quem te segue e que tu segues de volta.',
       not_accepting: 'Este colega não está a aceitar pedidos de PDF.',
       open_access: 'Este artigo é de acesso aberto — usa o acesso direto.',
       no_pdf: 'O teu colega já não tem o PDF deste artigo.',
     };
-    const code = out.reason === 'not_friends' ? 403 : out.reason === 'not_accepting' ? 403 : 409;
+    const code = out.reason === 'not_mutual' || out.reason === 'not_accepting' ? 403 : 409;
     return res.status(code).json({ error: messages[out.reason] });
   }
   await track(req.userId!, 'pdf_request', parsed.data.paperId);

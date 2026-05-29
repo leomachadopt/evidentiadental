@@ -77,17 +77,19 @@ pdf_size` no item. Upload é **direto do browser** (`@vercel/blob/client` → en
 
 ## Camada social (colegas)
 
-Grafo de **amizades mútuas** (`friendships`, consentimento dos dois lados) para retenção.
-Cada utilizador vê os artigos que os colegas guardaram recentemente (`friends-service.ts` →
-`GET /api/friends/activity`) e pode importá-los para a sua biblioteca (`POST /api/friends/import`,
-reusa `addToLibrary`). No import, se o artigo for **open access** e o colega tiver um PDF
-carregado, o backend **copia o ficheiro para um blob próprio do importador** (`getImportablePdf`
-faz o gate de OA + amizade; `copyPdfBlob`), para a cópia ficar independente — se o colega apagar
-o dele, o teu não parte. **Paywalled nunca é copiado.** Tudo é **opt-in**
-(`users.share_library_activity`, `accept_pdf_requests`,
-geridos no Perfil); a `note` privada de cada item **nunca** é exposta — só o facto do save e a
-data. Perfil tem foto (`users.avatar_url`, no Blob via prefixo `avatars/`), cidade, nome,
-especialidade.
+Grafo de **seguir direcional** (`follows`, `follower_id → followee_id`) — **instantâneo, sem
+aprovação**. Visibilidade é direcional: se eu te sigo e tu tens `share_library_activity` ligado,
+vejo os teus saves no feed (`friends-service.ts` → `GET /api/friends/activity`). Listas em
+`GET /api/friends/following` e `/followers` (com `follows_me`/`i_follow` para o "seguir de volta").
+Importar para a biblioteca: `POST /api/friends/import` (reusa `addToLibrary`). No import, se o
+artigo for **open access** e o colega tiver um PDF carregado, o backend **copia o ficheiro para um
+blob próprio do importador** (`getImportablePdf` faz o gate de OA + seguir; `copyPdfBlob`), para a
+cópia ficar independente — se o colega apagar o dele, o teu não parte. **Paywalled nunca é
+copiado.** Pedir PDF (modelo reprint) **exige seguimento mútuo**. Tudo é **opt-in**
+(`users.share_library_activity`, `accept_pdf_requests`, `discoverable`, geridos no Perfil); a
+`note` privada **nunca** é exposta — só o facto do save e a data, e o **email nunca** é mostrado a
+outros utilizadores. Perfil tem foto (`users.avatar_url`, no Blob via prefixo `avatars/`), cidade,
+nome, especialidade.
 
 **Princípio não-negociável (PDFs paywalled):** a plataforma **nunca move, serve, aloja ou
 relaya** um PDF paywalled entre utilizadores — isso é redistribuição e é o que afundou o
@@ -96,8 +98,8 @@ ResearchGate. A bifurcação por artigo é obrigatória:
   / `GET /api/papers/:id/access`).
 - **Paywalled que um colega tem** → só registamos o pedido (`pdf_requests`) e devolvemos um
   **deep-link externo** (WhatsApp/email — o clássico "pedido de reprint"); o ficheiro viaja
-  peer-to-peer, fora da plataforma. O backend rejeita pedidos de PDF para artigos OA e para
-  quem não tem o ficheiro ou não fez opt-in.
+  peer-to-peer, fora da plataforma. O backend rejeita pedidos de PDF sem seguimento mútuo, para
+  artigos OA, e para quem não tem o ficheiro ou não fez opt-in.
 
 Este princípio é irmão da regra anti-Sci-Hub acima: a fronteira é sempre *quem* move os bytes
 e *com que propósito*. Se for pedido para a plataforma transferir o ficheiro paywalled (mesmo

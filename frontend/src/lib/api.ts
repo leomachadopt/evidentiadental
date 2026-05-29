@@ -85,25 +85,19 @@ export interface UserSearchResult {
   speciality: string | null;
   city: string | null;
   avatar_url: string | null;
-  relationship: 'none' | 'pending_out' | 'pending_in' | 'friends';
+  i_follow: boolean;
+  follows_me: boolean;
 }
 
-export interface Friend {
-  friendship_id: string;
+export interface FollowUser {
   id: string;
   name: string | null;
-  email: string;
+  speciality: string | null;
+  city: string | null;
   avatar_url: string | null;
   since: string;
-}
-
-export interface PendingFriendRequest {
-  friendship_id: string;
-  id: string;
-  name: string | null;
-  email: string;
-  avatar_url: string | null;
-  created_at: string;
+  follows_me?: boolean; // in the "following" list
+  i_follow?: boolean; // in the "followers" list
 }
 
 export interface FriendActivityItem {
@@ -121,6 +115,7 @@ export interface FriendActivityItem {
   friend_avatar: string | null;
   friend_has_pdf: boolean;
   friend_accepts_requests: boolean;
+  mutual: boolean;
   in_my_library: boolean;
 }
 
@@ -130,7 +125,6 @@ export interface IncomingPdfRequest {
   channel: string;
   created_at: string;
   requester_name: string | null;
-  requester_email: string;
   title: string;
   pmid: string | null;
 }
@@ -264,29 +258,24 @@ export const api = {
     return blob.url;
   },
 
-  // Friends (social layer)
-  listFriends: () => request<{ friends: Friend[] }>('/api/friends'),
-  listFriendRequests: () => request<{ requests: PendingFriendRequest[] }>('/api/friends/requests/incoming'),
-  addFriend: (email: string) =>
-    request<{ status: string }>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ email }) }),
-  addFriendById: (userId: string) =>
-    request<{ status: string }>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ userId }) }),
+  // Social layer (follow graph)
+  listFollowing: () => request<{ following: FollowUser[] }>('/api/friends/following'),
+  listFollowers: () => request<{ followers: FollowUser[] }>('/api/friends/followers'),
   searchUsers: (q: string) =>
     request<{ results: UserSearchResult[] }>(`/api/friends/search?q=${encodeURIComponent(q)}`),
-  respondFriendRequest: (id: string, accept: boolean) =>
-    request<{ ok: boolean }>(`/api/friends/requests/${id}/respond`, {
-      method: 'POST',
-      body: JSON.stringify({ accept }),
-    }),
-  removeFriend: (friendId: string) =>
-    request<{ ok: boolean }>(`/api/friends/${friendId}`, { method: 'DELETE' }),
+  follow: (userId: string) =>
+    request<{ status: string }>('/api/friends/follow', { method: 'POST', body: JSON.stringify({ userId }) }),
+  unfollow: (userId: string) =>
+    request<{ ok: boolean }>(`/api/friends/follow/${userId}`, { method: 'DELETE' }),
   friendActivity: () => request<{ activity: FriendActivityItem[] }>('/api/friends/activity'),
-  friendProfile: (friendId: string) =>
+  friendProfile: (userId: string) =>
     request<{
       profile: { id: string; name: string | null; speciality: string | null; city: string | null; avatar_url: string | null };
+      iFollow: boolean;
+      followsMe: boolean;
       sharesActivity: boolean;
       items: FriendActivityItem[];
-    }>(`/api/friends/${friendId}/profile`),
+    }>(`/api/friends/${userId}/profile`),
   importFromFriend: (paperId: string, ownerId?: string, collectionId?: string) =>
     request<{ id: string }>('/api/friends/import', {
       method: 'POST',

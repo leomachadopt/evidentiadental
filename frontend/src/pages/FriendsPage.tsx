@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Users, Check, X, Trash2, Inbox, Search } from 'lucide-react';
+import { Users, UserPlus, UserMinus, UserCheck, Check, X, Inbox, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { Avatar } from '../components/Avatar';
 import { SavedArticleCard } from '../components/SavedArticleCard';
+import type { UserSearchResult, FollowUser } from '../lib/api';
 
 const PERIODS = [
   { key: 'all', label: 'Tudo' },
@@ -36,6 +37,10 @@ function parseAuthors(a: any): any[] {
   return typeof a === 'string' ? JSON.parse(a) : a ?? [];
 }
 
+function detail(u: { speciality: string | null; city: string | null }): string {
+  return [u.speciality, u.city].filter(Boolean).join(' · ');
+}
+
 export function FriendsPage() {
   const qc = useQueryClient();
   const [term, setTerm] = useState('');
@@ -49,8 +54,8 @@ export function FriendsPage() {
     return () => clearTimeout(t);
   }, [term]);
 
-  const friends = useQuery({ queryKey: ['friends'], queryFn: () => api.listFriends() });
-  const requests = useQuery({ queryKey: ['friend-requests'], queryFn: () => api.listFriendRequests() });
+  const following = useQuery({ queryKey: ['following'], queryFn: () => api.listFollowing() });
+  const followers = useQuery({ queryKey: ['followers'], queryFn: () => api.listFollowers() });
   const activity = useQuery({ queryKey: ['friend-activity'], queryFn: () => api.friendActivity() });
   const incoming = useQuery({ queryKey: ['pdf-requests-incoming'], queryFn: () => api.incomingPdfRequests() });
   const peopleSearch = useQuery({
@@ -59,46 +64,21 @@ export function FriendsPage() {
     enabled: debounced.length >= 2,
   });
 
-  const filteredActivity = useMemo(() => {
-    const items = activity.data?.activity ?? [];
-    const needle = q.trim().toLowerCase();
-    return items.filter((it) => {
-      if (!inPeriod(it.added_at, period)) return false;
-      if (!needle) return true;
-      const authors = parseAuthors(it.authors).map((a: any) => a.name).join(' ');
-      return [it.title, it.journal, it.friend_name, authors, it.year]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(needle);
-    });
-  }, [activity.data, q, period]);
-
-  const invalidateAll = () => {
-    qc.invalidateQueries({ queryKey: ['friends'] });
-    qc.invalidateQueries({ queryKey: ['friend-requests'] });
+  const invalidateGraph = () => {
+    qc.invalidateQueries({ queryKey: ['user-search'] });
+    qc.invalidateQueries({ queryKey: ['following'] });
+    qc.invalidateQueries({ queryKey: ['followers'] });
     qc.invalidateQueries({ queryKey: ['friend-activity'] });
   };
 
-  const addById = useMutation({
-    mutationFn: (userId: string) => api.addFriendById(userId),
-    onSuccess: () => {
-      setError(null);
-      qc.invalidateQueries({ queryKey: ['user-search'] });
-      qc.invalidateQueries({ queryKey: ['friend-requests'] });
-      qc.invalidateQueries({ queryKey: ['friends'] });
-    },
-    onError: (e: any) => setError(e.message ?? 'Não foi possível enviar o pedido.'),
+  const follow = useMutation({
+    mutationFn: (userId: string) => api.follow(userId),
+    onSuccess: invalidateGraph,
+    onError: (e: any) => setError(e.message ?? 'Não foi possível seguir.'),
   });
-
-  const respond = useMutation({
-    mutationFn: ({ id, accept }: { id: string; accept: boolean }) => api.respondFriendRequest(id, accept),
-    onSuccess: invalidateAll,
-  });
-
-  const remove = useMutation({
-    mutationFn: (friendId: string) => api.removeFriend(friendId),
-    onSuccess: invalidateAll,
+  const unfollow = useMutation({
+    mutationFn: (userId: string) => api.unfollow(userId),
+    onSuccess: invalidateGraph,
   });
 
   const importItem = useMutation({
@@ -134,14 +114,59 @@ export function FriendsPage() {
     }
   }
 
+  const filteredActivity = useMemo(() => {
+    const items = activity.data?.activity ?? [];
+    const needle = q.trim().toLowerCase();
+    return items.filter((it) => {
+      if (!inPeriod(it.added_at, period)) return false;
+      if (!needle) return true;
+      const authors = parseAuthors(it.authors).map((a: any) => a.name).join(' ');
+      return [it.title, it.journal, it.friend_name, authors, it.year]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [activity.data, q, period]);
+
+  /** Follow/seguir-de-volta/a-seguir button for a person row. */
+  function FollowButton({ u }: { u: { id: string; i_follow?: boolean; follows_me?: boolean } }) {
+    if (u.i_follow) {
+      return (
+        <button className="btn-ghost text-xs" onClick={() => unfollow.mutate(u.id)} title="Deixar de seguir">
+          <UserCheck className="h-3.5 w-3.5" /> A seguir
+        </button>
+      );
+    }
+    return (
+      <button className="btn-primary text-xs" onClick={() => follow.mutate(u.id)} disabled={follow.isPending}>
+        <UserPlus className="h-3.5 w-3.5" /> {u.follows_me ? 'Seguir de volta' : 'Seguir'}
+      </button>
+    );
+  }
+
+  function PersonRow({ u, action }: { u: FollowUser | UserSearchResult; action: React.ReactNode }) {
+    return (
+      <li className="flex items-center justify-between gap-3 py-2">
+        <Link to={`/friends/${u.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
+          <Avatar url={u.avatar_url} name={u.name} size={32} />
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium hover:underline">{u.name ?? 'Sem nome'}</span>
+            <span className="block truncate text-xs text-slate-500">{detail(u) || '—'}</span>
+          </span>
+        </Link>
+        <span className="flex shrink-0 items-center gap-2">{action}</span>
+      </li>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Colegas</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Vê o que os teus colegas estão a guardar e troca artigos. Artigos de acesso aberto abrem
-          diretamente; para os restantes, pedes o PDF ao colega — a troca acontece no vosso canal. As
-          definições de partilha estão no teu{' '}
+          Segue colegas para veres no teu feed o que eles guardam. Open access abre direto; para os
+          restantes, o pedido de PDF requer seguimento mútuo. Definições de partilha no teu{' '}
           <Link to="/profile" className="text-primary-600 underline">
             perfil
           </Link>
@@ -149,7 +174,7 @@ export function FriendsPage() {
         </p>
       </div>
 
-      {/* Find colleagues by name */}
+      {/* Find colleagues */}
       <section className="card space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
           <UserPlus className="h-5 w-5 text-primary-600" /> Encontrar colegas
@@ -159,7 +184,7 @@ export function FriendsPage() {
           <input
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Procurar colega por nome…"
+            placeholder="Procurar por nome, especialidade ou cidade…"
             className="input-field pl-9"
           />
         </div>
@@ -169,38 +194,11 @@ export function FriendsPage() {
           (peopleSearch.isLoading ? (
             <p className="text-sm text-slate-500">A procurar…</p>
           ) : (peopleSearch.data?.results.length ?? 0) === 0 ? (
-            <p className="text-sm text-slate-500">Ninguém encontrado com esse nome.</p>
+            <p className="text-sm text-slate-500">Ninguém encontrado.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
               {peopleSearch.data!.results.map((u) => (
-                <li key={u.id} className="flex items-center justify-between gap-3 py-2">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Avatar url={u.avatar_url} name={u.name} size={32} />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{u.name ?? 'Sem nome'}</span>
-                      <span className="block truncate text-xs text-slate-500">
-                        {[u.speciality, u.city].filter(Boolean).join(' · ') || '—'}
-                      </span>
-                    </span>
-                  </span>
-                  {u.relationship === 'friends' ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                      <Check className="h-3.5 w-3.5" /> Amigos
-                    </span>
-                  ) : u.relationship === 'pending_out' ? (
-                    <span className="text-xs text-slate-400">Pendente</span>
-                  ) : u.relationship === 'pending_in' ? (
-                    <span className="text-xs text-primary-600">Pediu-te amizade</span>
-                  ) : (
-                    <button
-                      className="btn-primary text-xs"
-                      onClick={() => addById.mutate(u.id)}
-                      disabled={addById.isPending}
-                    >
-                      <UserPlus className="h-3.5 w-3.5" /> Adicionar
-                    </button>
-                  )}
-                </li>
+                <PersonRow key={u.id} u={u} action={<FollowButton u={u} />} />
               ))}
             </ul>
           ))}
@@ -208,40 +206,6 @@ export function FriendsPage() {
           Só aparecem colegas que permitem ser encontrados. O email nunca é mostrado.
         </p>
       </section>
-
-      {/* Incoming friend requests */}
-      {(requests.data?.requests.length ?? 0) > 0 && (
-        <section className="card space-y-3">
-          <h2 className="text-lg font-semibold tracking-tight">Pedidos de amizade</h2>
-          <ul className="space-y-2">
-            {requests.data!.requests.map((r) => (
-              <li key={r.friendship_id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="flex items-center gap-2">
-                  <Avatar url={r.avatar_url} name={r.name ?? r.email} size={32} />
-                  <span>
-                    <strong>{r.name ?? r.email}</strong>
-                    {r.name && <span className="text-slate-400"> · {r.email}</span>}
-                  </span>
-                </span>
-                <span className="flex gap-2">
-                  <button
-                    className="btn-primary"
-                    onClick={() => respond.mutate({ id: r.friendship_id, accept: true })}
-                  >
-                    <Check className="h-4 w-4" /> Aceitar
-                  </button>
-                  <button
-                    className="btn-ghost"
-                    onClick={() => respond.mutate({ id: r.friendship_id, accept: false })}
-                  >
-                    <X className="h-4 w-4" /> Recusar
-                  </button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {/* Incoming PDF requests */}
       {(incoming.data?.requests.filter((r) => r.status === 'pending').length ?? 0) > 0 && (
@@ -258,20 +222,14 @@ export function FriendsPage() {
               .map((r) => (
                 <li key={r.id} className="flex items-start justify-between gap-3 text-sm">
                   <span>
-                    <strong>{r.requester_name ?? r.requester_email}</strong> pediu{' '}
+                    <strong>{r.requester_name ?? 'Um colega'}</strong> pediu{' '}
                     <span className="italic">“{r.title}”</span>
                   </span>
                   <span className="flex shrink-0 gap-2">
-                    <button
-                      className="btn-primary"
-                      onClick={() => resolveReq.mutate({ id: r.id, status: 'fulfilled' })}
-                    >
+                    <button className="btn-primary" onClick={() => resolveReq.mutate({ id: r.id, status: 'fulfilled' })}>
                       <Check className="h-4 w-4" /> Enviei
                     </button>
-                    <button
-                      className="btn-ghost"
-                      onClick={() => resolveReq.mutate({ id: r.id, status: 'declined' })}
-                    >
+                    <button className="btn-ghost" onClick={() => resolveReq.mutate({ id: r.id, status: 'declined' })}>
                       <X className="h-4 w-4" />
                     </button>
                   </span>
@@ -281,32 +239,71 @@ export function FriendsPage() {
         </section>
       )}
 
-      {/* Friends list */}
-      <section className="card space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <Users className="h-5 w-5 text-primary-600" /> Os meus colegas
-        </h2>
-        {friends.data?.friends.length ? (
-          <ul className="divide-y divide-slate-100">
-            {friends.data.friends.map((f) => (
-              <li key={f.friendship_id} className="flex items-center justify-between py-2 text-sm">
-                <Link to={`/friends/${f.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
-                  <Avatar url={f.avatar_url} name={f.name ?? f.email} size={32} />
-                  <span className="min-w-0">
-                    <strong className="hover:underline">{f.name ?? f.email}</strong>
-                    {f.name && <span className="text-slate-400"> · {f.email}</span>}
-                  </span>
-                </Link>
-                <button className="btn-ghost text-rose-600" onClick={() => remove.mutate(f.id)} title="Remover">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-slate-500">Ainda não tens colegas. Adiciona um pelo email acima.</p>
-        )}
-      </section>
+      {/* Following + Followers */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="card space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <Users className="h-5 w-5 text-primary-600" /> A seguir
+          </h2>
+          {following.data?.following.length ? (
+            <ul className="divide-y divide-slate-100">
+              {following.data.following.map((u) => (
+                <PersonRow
+                  key={u.id}
+                  u={u}
+                  action={
+                    <>
+                      {u.follows_me && <span className="text-xs text-slate-400">Segue-te</span>}
+                      <button
+                        className="btn-ghost text-rose-600"
+                        onClick={() => unfollow.mutate(u.id)}
+                        title="Deixar de seguir"
+                      >
+                        <UserMinus className="h-4 w-4" />
+                      </button>
+                    </>
+                  }
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">Ainda não segues ninguém. Procura colegas acima.</p>
+          )}
+        </section>
+
+        <section className="card space-y-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <Users className="h-5 w-5 text-primary-600" /> Seguidores
+          </h2>
+          {followers.data?.followers.length ? (
+            <ul className="divide-y divide-slate-100">
+              {followers.data.followers.map((u) => (
+                <PersonRow
+                  key={u.id}
+                  u={u}
+                  action={
+                    u.i_follow ? (
+                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                        <UserCheck className="h-3.5 w-3.5" /> A seguir
+                      </span>
+                    ) : (
+                      <button
+                        className="btn-primary text-xs"
+                        onClick={() => follow.mutate(u.id)}
+                        disabled={follow.isPending}
+                      >
+                        <UserPlus className="h-3.5 w-3.5" /> Seguir de volta
+                      </button>
+                    )
+                  }
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-slate-500">Ainda não tens seguidores.</p>
+          )}
+        </section>
+      </div>
 
       {/* Activity feed */}
       <section className="space-y-3">
@@ -343,7 +340,7 @@ export function FriendsPage() {
           <p className="text-sm text-slate-500">A carregar…</p>
         ) : (activity.data?.activity.length ?? 0) === 0 ? (
           <p className="text-sm text-slate-500">
-            Sem atividade ainda. Os saves dos teus colegas aparecem aqui quando eles ativam a partilha.
+            Sem atividade ainda. Segue colegas que partilham e os saves deles aparecem aqui.
           </p>
         ) : filteredActivity.length === 0 ? (
           <p className="text-sm text-slate-500">Nada corresponde à tua busca/filtro.</p>
