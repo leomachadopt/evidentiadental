@@ -300,13 +300,13 @@ export function LibraryPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                       {item.pmid && (
                         <a
                           href={`https://pubmed.ncbi.nlm.nih.gov/${item.pmid}/`}
                           target="_blank"
                           rel="noopener"
-                          className="inline-flex items-center gap-1 text-primary-600 hover:underline"
+                          className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600 transition hover:bg-slate-200"
                         >
                           PMID {item.pmid} <ExternalLink className="h-3 w-3" />
                         </a>
@@ -316,32 +316,32 @@ export function LibraryPage() {
                           href={item.oa_pdf_url}
                           target="_blank"
                           rel="noopener"
-                          className="inline-flex items-center gap-1 text-emerald-700 hover:underline"
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 transition hover:bg-emerald-100"
                         >
                           <Unlock className="h-3 w-3" />
                           {materializeMut.isPending ? 'A obter PDF…' : 'PDF grátis'}
                         </a>
                       )}
                       {item.pdf_url ? (
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-2.5 pr-1.5 font-medium text-primary-700">
                           <a
                             href={item.pdf_url}
                             target="_blank"
                             rel="noopener"
-                            className="inline-flex items-center gap-1 text-primary-700 hover:underline"
+                            className="inline-flex items-center gap-1 hover:underline"
                           >
                             <FileText className="h-3 w-3" /> PDF{item.pdf_size ? ` (${formatSize(item.pdf_size)})` : ''}
                           </a>
                           <button
                             onClick={() => removePdfMut.mutate(item.id)}
                             title="Remover PDF"
-                            className="text-slate-400 hover:text-red-600"
+                            className="text-primary-400 transition hover:text-red-600"
                           >
                             <X className="h-3 w-3" />
                           </button>
                         </span>
                       ) : (
-                        <label className="inline-flex cursor-pointer items-center gap-1 text-slate-500 hover:text-primary-700">
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600 transition hover:bg-slate-200">
                           {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                           {isUploading ? 'A enviar...' : 'Carregar PDF'}
                           <input
