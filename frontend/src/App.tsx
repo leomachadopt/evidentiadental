@@ -9,7 +9,6 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { LandingPage } from './pages/LandingPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { LibraryPage } from './pages/LibraryPage';
-import { CuratedPage } from './pages/CuratedPage';
 import { BillingPage } from './pages/BillingPage';
 import { AdminPage } from './pages/AdminPage';
 import { MeshBackground } from './components/MeshBackground';
@@ -34,7 +33,6 @@ function RequireAccess({ hasAccess, children }: { hasAccess: boolean | undefined
 
 const NAV = [
   { to: '/', label: 'Nova busca' },
-  { to: '/curated', label: 'Curadas' },
   { to: '/history', label: 'Histórico' },
   { to: '/library', label: 'Biblioteca' },
   { to: '/billing', label: 'Conta' },
@@ -139,7 +137,6 @@ export default function App() {
             path="/"
             element={authed ? <RequireAccess hasAccess={me?.hasAccess}><NewSearchPage /></RequireAccess> : <LandingPage />}
           />
-          <Route path="/curated" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><CuratedPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><HistoryPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/library" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><LibraryPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />

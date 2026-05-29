@@ -30,7 +30,7 @@ Se vires código onde o LLM gera ou cita PMIDs sem que esses PMIDs venham de uma
 ```
 backend/
   src/
-    routes/        # HTTP: auth, searches, library, exports, curated, billing
+    routes/        # HTTP: auth, searches, library, exports, billing
     services/      # Lógica: search-service, synthesis-service, citation-validator,
                    #         library-service, export-service
     middleware/    # auth (JWT), tier-limits (quotas diárias por plano)
@@ -39,10 +39,9 @@ backend/
                    #           claude, stripe, http (helpers), config
     prompts/       # Prompts Claude versionados (pico, relevance, synthesis)
   migrations/      # SQL migrations (001 schema, 002 billing)
-  scripts/         # seed-curated.ts (npm run seed:curated)
 frontend/
   src/
-    pages/         # NewSearchPage, SearchResultsPage, History, Library, Curated, Billing, Login
+    pages/         # NewSearchPage, SearchResultsPage, History, Library, Billing, Login
     lib/           # Cliente API
 ```
 

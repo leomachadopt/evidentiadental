@@ -149,13 +149,6 @@ export const api = {
   removePdf: (itemId: string) =>
     request<{ ok: boolean }>(`/api/library/${itemId}/pdf`, { method: 'DELETE' }),
 
-  // Curated queries
-  listCurated: (area?: string) =>
-    request<{ queries: any[] }>(`/api/curated${area ? `?area=${encodeURIComponent(area)}` : ''}`),
-  listCuratedAreas: () => request<{ areas: Array<{ area: string; count: number }> }>('/api/curated/areas'),
-  instantiateCurated: (id: string) =>
-    request<{ searchId: string }>(`/api/curated/${id}/instantiate`, { method: 'POST' }),
-
   // Billing
   billingStatus: () =>
     request<{
