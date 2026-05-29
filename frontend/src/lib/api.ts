@@ -1,3 +1,5 @@
+import { upload } from '@vercel/blob/client';
+
 // In production the backend is served under the Vercel service prefix
 // (see vercel.json -> experimentalServices.backend.routePrefix). Locally it
 // runs standalone on :3001. Override anytime with VITE_API_URL.
@@ -105,16 +107,47 @@ export const api = {
     openInNewTab(`/api/searches/${searchId}/export/synthesis.html`),
 
   // Library
-  addToLibrary: (body: { paperId: string; folder?: string; tags?: string[]; note?: string }) =>
+  addToLibrary: (body: { paperId: string; collectionId?: string; tags?: string[]; note?: string }) =>
     request<{ id: string }>('/api/library', { method: 'POST', body: JSON.stringify(body) }),
-  listLibrary: (params: { folder?: string; tag?: string } = {}) => {
+  listLibrary: (params: { collectionId?: string; tag?: string } = {}) => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
     return request<{ items: any[] }>(`/api/library${qs ? `?${qs}` : ''}`);
   },
-  listFolders: () => request<{ folders: Array<{ folder: string; count: number }> }>('/api/library/folders'),
-  updateLibraryItem: (id: string, patch: { folder?: string; tags?: string[]; note?: string }) =>
+  updateLibraryItem: (id: string, patch: { collectionId?: string; tags?: string[]; note?: string }) =>
     request<{ ok: boolean }>(`/api/library/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   removeLibraryItem: (id: string) => request<{ ok: boolean }>(`/api/library/${id}`, { method: 'DELETE' }),
+
+  // Collections (folders)
+  listCollections: () =>
+    request<{ collections: Array<{ id: string; name: string; count: number }> }>('/api/library/collections'),
+  createCollection: (name: string) =>
+    request<{ id: string; name: string; count: number }>('/api/library/collections', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  renameCollection: (id: string, name: string) =>
+    request<{ ok: boolean }>(`/api/library/collections/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteCollection: (id: string) =>
+    request<{ ok: boolean }>(`/api/library/collections/${id}`, { method: 'DELETE' }),
+
+  // PDF upload (browser → Vercel Blob direct, then confirm to the backend)
+  uploadPdf: async (itemId: string, file: File): Promise<string> => {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `library/${itemId}/${Date.now()}-${safe}`;
+    const blob = await upload(path, file, {
+      access: 'public',
+      contentType: 'application/pdf',
+      handleUploadUrl: `${API_URL}/api/library/blob-upload`,
+      clientPayload: getToken() ?? '',
+    });
+    await request(`/api/library/${itemId}/pdf`, {
+      method: 'POST',
+      body: JSON.stringify({ url: blob.url, name: file.name, size: file.size }),
+    });
+    return blob.url;
+  },
+  removePdf: (itemId: string) =>
+    request<{ ok: boolean }>(`/api/library/${itemId}/pdf`, { method: 'DELETE' }),
 
   // Curated queries
   listCurated: (area?: string) =>

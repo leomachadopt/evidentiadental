@@ -25,6 +25,9 @@ const schema = z.object({
   // syncs subscribers/groups into MailerLite. No-op when unset (graceful).
   N8N_WEBHOOK_URL: z.string().url().optional(),
   N8N_WEBHOOK_SECRET: z.string().optional(),
+  // Object storage for user-uploaded PDFs (Vercel Blob). Auto-injected by Vercel
+  // when a Blob store is linked. Upload endpoints are no-op/503 when unset.
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),

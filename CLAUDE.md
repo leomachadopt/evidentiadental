@@ -65,6 +65,17 @@ autores (ResearchGate / Scholar).
 conteúdo pirateado, mesmo a pedido. É ilegal, é risco para um produto comercial, e
 contradiz o posicionamento. Se for pedido, recusar e oferecer as vias legais acima.
 
+## Biblioteca: pastas (collections) e PDFs
+
+Pastas são linhas em `collections` (uma por user, `name` único, com `'Inbox'` como
+default). `library_items.collection_id` aponta para a pasta; apagar uma pasta move os
+artigos para o Inbox (`library-service.ts`). O PDF carregado pelo utilizador **não vai para
+a BD** — vai para **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`); só guardamos `pdf_url/pdf_name/
+pdf_size` no item. Upload é **direto do browser** (`@vercel/blob/client` → endpoint
+`POST /api/library/blob-upload`, auth via JWT em `clientPayload`); o cliente confirma com
+`POST /api/library/:id/pdf`. Apagar item/PDF apaga o blob (best-effort). No-op gracioso se
+`BLOB_READ_WRITE_TOKEN` não estiver configurado.
+
 ## Billing & limites
 
 **Um único plano pago** (mesmas funcionalidades), cobrado **mensal (9,90€)** ou **anual

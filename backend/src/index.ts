@@ -7,6 +7,7 @@ import { libraryRouter } from './routes/library.js';
 import { exportsRouter } from './routes/exports.js';
 import { curatedRouter } from './routes/curated.js';
 import { billingRouter, handleStripeWebhook } from './routes/billing.js';
+import { handleBlobUpload } from './routes/uploads.js';
 import { papersRouter } from './routes/papers.js';
 import { settingsRouter } from './routes/settings.js';
 import { adminRouter } from './routes/admin.js';
@@ -37,6 +38,9 @@ app.get('/health', (_req, res) => res.json({ ok: true, env: config.NODE_ENV }));
 app.use('/api/auth', authRouter);
 app.use('/api/searches', searchesRouter);
 app.use('/api/searches', exportsRouter); // /:id/export/* (distinct paths, no conflict)
+// Vercel Blob client-upload token endpoint — auth via clientPayload (JWT),
+// so it must sit BEFORE the auth'd library router.
+app.post('/api/library/blob-upload', handleBlobUpload);
 app.use('/api/library', libraryRouter);
 app.use('/api/curated', curatedRouter);
 app.use('/api/billing', billingRouter);
