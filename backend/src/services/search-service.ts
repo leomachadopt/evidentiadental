@@ -69,6 +69,7 @@ interface PaperInput {
 export async function createSearch(
   userId: string,
   rawQuestion: string,
+  opts: { yearFrom?: number } = {},
 ): Promise<{ search: SearchRecord; pico: PicoResponse }> {
   const picoResult = await callClaudeJson<unknown>({
     system: PICO_SYSTEM_PROMPT,
@@ -82,15 +83,19 @@ export async function createSearch(
   }
   const pico = parsed.data;
 
+  // Persist the chosen period inside the PICO so it's auditable and reproducible.
+  const picoJson: Record<string, unknown> = {
+    ...pico.pico,
+    pubmed_query: pico.pubmed_query,
+    rationale: pico.rationale,
+  };
+  if (opts.yearFrom) picoJson.filters = { year_from: opts.yearFrom };
+
   const result = await query<SearchRecord>(
     `INSERT INTO searches (user_id, raw_question, pico, status)
      VALUES ($1, $2, $3, 'pico_ready')
      RETURNING *`,
-    [
-      userId,
-      rawQuestion,
-      JSON.stringify({ ...pico.pico, pubmed_query: pico.pubmed_query, rationale: pico.rationale }),
-    ],
+    [userId, rawQuestion, JSON.stringify(picoJson)],
   );
 
   await query(
@@ -128,9 +133,15 @@ export async function executeSearch(
 
   const apiCalls: Record<string, number> = {};
 
+  // Optional publication-date window from the saved PICO filters.
+  const yearFrom = (search.pico as any).filters?.year_from as number | undefined;
+  const dateOpts = yearFrom
+    ? { mindate: String(yearFrom), maxdate: String(new Date().getFullYear()), datetype: 'pdat' }
+    : {};
+
   try {
     // --- 2. PubMed (source of truth) ---
-    const esearchResult = await esearch(pubmedQuery, { retmax: maxResults });
+    const esearchResult = await esearch(pubmedQuery, { retmax: maxResults, ...dateOpts });
     apiCalls.pubmed = (apiCalls.pubmed ?? 0) + 1;
     await recordQuery(searchId, 'pubmed', pubmedQuery, 'success', esearchResult.count, {
       queryTranslation: esearchResult.queryTranslation,

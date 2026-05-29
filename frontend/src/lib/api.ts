@@ -77,8 +77,11 @@ export const api = {
     request<{ ok: true }>('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
 
   // Searches
-  createSearch: (question: string) =>
-    request<{ search: any; pico: any }>('/api/searches', { method: 'POST', body: JSON.stringify({ question }) }),
+  createSearch: (question: string, yearFrom?: number) =>
+    request<{ search: any; pico: any }>('/api/searches', {
+      method: 'POST',
+      body: JSON.stringify(yearFrom ? { question, yearFrom } : { question }),
+    }),
   executeSearch: (id: string, maxResults = 30) =>
     request<{ resultsCount: number; trialsCount: number }>(`/api/searches/${id}/execute`, {
       method: 'POST',

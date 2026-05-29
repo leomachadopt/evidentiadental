@@ -119,6 +119,12 @@ export function SearchResultsPage() {
           <PicoField label="Outcomes" value={Array.isArray(pico.outcomes) ? pico.outcomes.join(', ') : pico.outcomes} />
         </div>
 
+        {pico.filters?.year_from && (
+          <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-600">
+            Período: desde {pico.filters.year_from}
+          </div>
+        )}
+
         {pico.pubmed_query && (
           <details className="mt-4">
             <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">

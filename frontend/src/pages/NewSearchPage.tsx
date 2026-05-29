@@ -19,6 +19,7 @@ const STEPS = [
 export function NewSearchPage() {
   const navigate = useNavigate();
   const [question, setQuestion] = useState('');
+  const [period, setPeriod] = useState<'any' | '5' | '10' | '15'>('any');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +33,8 @@ export function NewSearchPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.createSearch(question);
+      const yearFrom = period === 'any' ? undefined : new Date().getFullYear() - Number(period);
+      const result = await api.createSearch(question, yearFrom);
       navigate(`/searches/${result.search.id}`);
     } catch (e: any) {
       setError(e.message);
@@ -68,13 +70,22 @@ export function NewSearchPage() {
             disabled={loading}
             autoFocus
           />
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-            <span className="text-xs text-slate-400">
-              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">⌘</kbd>
-              {' + '}
-              <kbd className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 font-mono text-[10px]">Enter</kbd>
-              {' '}para analisar
-            </span>
+          <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-500">
+              <span className="hidden sm:inline">Período:</span>
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value as 'any' | '5' | '10' | '15')}
+                disabled={loading}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus:border-primary-400 focus:outline-none"
+                title="Limitar por data de publicação no PubMed"
+              >
+                <option value="any">Qualquer data</option>
+                <option value="5">Últimos 5 anos</option>
+                <option value="10">Últimos 10 anos</option>
+                <option value="15">Últimos 15 anos</option>
+              </select>
+            </label>
             <button onClick={handleSubmit} disabled={loading || tooShort} className="btn-primary">
               {loading ? (
                 <><Loader2 className="h-4 w-4 animate-spin" /> A gerar PICO…</>

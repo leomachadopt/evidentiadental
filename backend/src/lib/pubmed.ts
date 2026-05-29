@@ -102,15 +102,26 @@ export interface ESearchResult {
 
 export async function esearch(
   query: string,
-  options: { retmax?: number; retstart?: number } = {},
+  options: { retmax?: number; retstart?: number; sort?: string; mindate?: string; maxdate?: string; datetype?: string } = {},
 ): Promise<ESearchResult> {
-  const url = buildUrl('esearch.fcgi', {
+  // Default to PubMed "Best Match" (relevance), NOT the API default of
+  // most-recent-first. Otherwise the retmax cut keeps only the newest papers
+  // and drops older, highly-relevant ones before they ever reach scoring.
+  const params: Record<string, string | number> = {
     db: 'pubmed',
     term: query,
     retmax: options.retmax ?? 50,
     retstart: options.retstart ?? 0,
+    sort: options.sort ?? 'relevance',
     retmode: 'json',
-  });
+  };
+  // Optional date window (publication date). PubMed needs both bounds.
+  if (options.mindate && options.maxdate) {
+    params.mindate = options.mindate;
+    params.maxdate = options.maxdate;
+    params.datetype = options.datetype ?? 'pdat';
+  }
+  const url = buildUrl('esearch.fcgi', params);
 
   const res = await rateLimitedFetch(url);
   const data = await res.json();

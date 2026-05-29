@@ -15,12 +15,15 @@ searchesRouter.use(authRequired);
 // POST /api/searches — create a new search (generates PICO)
 // ============================================================
 searchesRouter.post('/', monthlyLimit('search'), async (req, res) => {
-  const schema = z.object({ question: z.string().min(10).max(1000) });
+  const schema = z.object({
+    question: z.string().min(10).max(1000),
+    yearFrom: z.number().int().min(1900).max(2100).optional(),
+  });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
   try {
-    const result = await createSearch(req.userId!, parsed.data.question);
+    const result = await createSearch(req.userId!, parsed.data.question, { yearFrom: parsed.data.yearFrom });
     res.json(result);
   } catch (e: any) {
     console.error('[POST /searches]', e);
