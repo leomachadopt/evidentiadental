@@ -15,6 +15,8 @@ import {
   FlaskConical,
   Download,
   Printer,
+  Upload,
+  X,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { FullTextAccess } from '../components/FullTextAccess';
@@ -26,6 +28,8 @@ export function SearchResultsPage() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [synthesis, setSynthesis] = useState<any>(null);
   const [executing, setExecuting] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [uploadingPaper, setUploadingPaper] = useState<string | null>(null);
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['search', id],
@@ -38,6 +42,8 @@ export function SearchResultsPage() {
   // across reloads and shows up when revisiting a search from the history.
   const { data: libraryData } = useQuery({ queryKey: ['library-ids'], queryFn: () => api.listLibrary({}) });
   const libIds = new Set<string>((libraryData?.items ?? []).map((i: any) => i.paper_id));
+  // paper_id -> library item (so we can show/upload the user's PDF from results)
+  const libByPaper = new Map<string, any>((libraryData?.items ?? []).map((i: any) => [i.paper_id, i]));
 
   const executeMutation = useMutation({
     mutationFn: () => api.executeSearch(id!, 30),
@@ -49,13 +55,17 @@ export function SearchResultsPage() {
     onSuccess: (data) => setSynthesis(data),
   });
 
+  function refreshLibrary() {
+    queryClient.invalidateQueries({ queryKey: ['library-ids'] });
+    queryClient.invalidateQueries({ queryKey: ['library'] });
+    queryClient.invalidateQueries({ queryKey: ['collections'] });
+  }
+
   async function saveToLibrary(paperId: string) {
     setSavedIds((prev) => new Set(prev).add(paperId)); // optimistic
     try {
       await api.addToLibrary({ paperId });
-      queryClient.invalidateQueries({ queryKey: ['library-ids'] });
-      queryClient.invalidateQueries({ queryKey: ['library'] });
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      refreshLibrary();
     } catch {
       setSavedIds((prev) => {
         const next = new Set(prev);
@@ -63,6 +73,51 @@ export function SearchResultsPage() {
         return next;
       });
     }
+  }
+
+  // Bulk-save every selected paper that isn't already in the library.
+  async function saveSelected() {
+    const ids = Array.from(selectedIds).filter((id) => !savedIds.has(id) && !libIds.has(id));
+    if (ids.length === 0) return;
+    setBulkSaving(true);
+    setSavedIds((prev) => { const n = new Set(prev); ids.forEach((i) => n.add(i)); return n; }); // optimistic
+    try {
+      await Promise.all(ids.map((id) => api.addToLibrary({ paperId: id })));
+      refreshLibrary();
+    } catch {
+      setSavedIds((prev) => { const n = new Set(prev); ids.forEach((i) => n.delete(i)); return n; });
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  // PDF lives on a library item, so uploading from results auto-saves the paper.
+  async function ensureItemId(paperId: string): Promise<string> {
+    const existing = libByPaper.get(paperId);
+    if (existing) return existing.id;
+    const { id } = await api.addToLibrary({ paperId });
+    setSavedIds((prev) => new Set(prev).add(paperId));
+    return id;
+  }
+
+  async function uploadResultPdf(paperId: string, file?: File | null) {
+    if (!file) return;
+    if (file.type !== 'application/pdf') return;
+    setUploadingPaper(paperId);
+    try {
+      const itemId = await ensureItemId(paperId);
+      await api.uploadPdf(itemId, file);
+      refreshLibrary();
+    } finally {
+      setUploadingPaper(null);
+    }
+  }
+
+  async function removeResultPdf(paperId: string) {
+    const item = libByPaper.get(paperId);
+    if (!item) return;
+    await api.removePdf(item.id);
+    refreshLibrary();
   }
 
   // Auto-execute if status is pico_ready
@@ -162,23 +217,34 @@ export function SearchResultsPage() {
       {/* Resultados */}
       {papers.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="text-lg font-semibold">
               {papers.length} papers encontrados ({selectedIds.size} selecionados)
             </h2>
-            {selectedIds.size >= 2 && (
-              <button
-                onClick={() => synthesisMutation.mutate()}
-                disabled={synthesisMutation.isPending}
-                className="btn-primary"
-              >
-                {synthesisMutation.isPending ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> A sintetizar...</>
-                ) : (
-                  <><Sparkles className="h-4 w-4 mr-2" /> Gerar mini-síntese</>
-                )}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedIds.size >= 1 && (
+                <button onClick={saveSelected} disabled={bulkSaving} className="btn-secondary">
+                  {bulkSaving ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> A guardar...</>
+                  ) : (
+                    <><BookmarkPlus className="h-4 w-4 mr-2" /> Guardar selecionados ({selectedIds.size})</>
+                  )}
+                </button>
+              )}
+              {selectedIds.size >= 2 && (
+                <button
+                  onClick={() => synthesisMutation.mutate()}
+                  disabled={synthesisMutation.isPending}
+                  className="btn-primary"
+                >
+                  {synthesisMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> A sintetizar...</>
+                  ) : (
+                    <><Sparkles className="h-4 w-4 mr-2" /> Gerar mini-síntese</>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -188,6 +254,11 @@ export function SearchResultsPage() {
                 result={r}
                 selected={selectedIds.has(r.paper_id)}
                 saved={savedIds.has(r.paper_id) || libIds.has(r.paper_id)}
+                pdfUrl={libByPaper.get(r.paper_id)?.pdf_url ?? null}
+                pdfSize={libByPaper.get(r.paper_id)?.pdf_size ?? null}
+                uploading={uploadingPaper === r.paper_id}
+                onUploadPdf={(file) => uploadResultPdf(r.paper_id, file)}
+                onRemovePdf={() => removeResultPdf(r.paper_id)}
                 onToggle={() => {
                   const next = new Set(selectedIds);
                   if (next.has(r.paper_id)) next.delete(r.paper_id);
@@ -278,18 +349,34 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs px-2 py-1 rounded-full ${className}`}>{label}</span>;
 }
 
+function formatSize(bytes: number | null): string {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function PaperCard({
   result,
   selected,
   saved,
+  pdfUrl,
+  pdfSize,
+  uploading,
   onToggle,
   onSave,
+  onUploadPdf,
+  onRemovePdf,
 }: {
   result: any;
   selected: boolean;
   saved: boolean;
+  pdfUrl: string | null;
+  pdfSize: number | null;
+  uploading: boolean;
   onToggle: () => void;
   onSave: () => void;
+  onUploadPdf: (file?: File | null) => void;
+  onRemovePdf: () => void;
 }) {
   const authors = typeof result.authors === 'string' ? JSON.parse(result.authors) : result.authors;
   const authorsStr = authors.slice(0, 3).map((a: any) => a.name).join(', ') + (authors.length > 3 ? ' et al' : '');
@@ -348,6 +435,29 @@ function PaperCard({
                  className="text-emerald-700 hover:underline inline-flex items-center gap-1">
                 PDF grátis <ExternalLink className="h-3 w-3" />
               </a>
+            )}
+            {pdfUrl ? (
+              <span className="inline-flex items-center gap-1">
+                <a href={pdfUrl} target="_blank" rel="noopener"
+                   className="text-primary-700 hover:underline inline-flex items-center gap-1">
+                  <FileText className="h-3 w-3" /> PDF{pdfSize ? ` (${formatSize(pdfSize)})` : ''}
+                </a>
+                <button onClick={onRemovePdf} title="Remover PDF" className="text-slate-400 hover:text-red-600">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ) : (
+              <label className="inline-flex cursor-pointer items-center gap-1 text-slate-500 hover:text-primary-600">
+                {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                {uploading ? 'A enviar...' : 'Carregar PDF'}
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => onUploadPdf(e.target.files?.[0])}
+                />
+              </label>
             )}
             <button
               onClick={onSave}
