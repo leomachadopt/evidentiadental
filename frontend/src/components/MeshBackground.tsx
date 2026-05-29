@@ -9,10 +9,10 @@
 export function MeshBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div className="absolute -left-[12%] -top-[15%] h-[60vh] w-[60vh] animate-blob-a rounded-full bg-primary-300/45 blur-[110px]" />
-      <div className="absolute -right-[8%] top-[6%] h-[52vh] w-[52vh] animate-blob-b rounded-full bg-sky-300/40 blur-[120px]" />
-      <div className="absolute -bottom-[14%] left-[18%] h-[58vh] w-[58vh] animate-blob-c rounded-full bg-emerald-200/45 blur-[120px]" />
-      <div className="absolute bottom-[8%] right-[12%] h-[42vh] w-[42vh] animate-blob-b rounded-full bg-rose-200/35 blur-[130px]" />
+      <div className="absolute -left-[12%] -top-[15%] h-[60vh] w-[60vh] animate-blob-a rounded-full bg-primary-200/40 blur-[110px]" />
+      <div className="absolute -right-[8%] top-[6%] h-[52vh] w-[52vh] animate-blob-b rounded-full bg-gold-200/35 blur-[120px]" />
+      <div className="absolute -bottom-[14%] left-[18%] h-[58vh] w-[58vh] animate-blob-c rounded-full bg-primary-300/30 blur-[120px]" />
+      <div className="absolute bottom-[8%] right-[12%] h-[42vh] w-[42vh] animate-blob-b rounded-full bg-gold-100/45 blur-[130px]" />
       {/* Fine grain to break up the gradient banding (fixed, never repainted on scroll). */}
       <div
         className="absolute inset-0 opacity-[0.025] mix-blend-overlay"

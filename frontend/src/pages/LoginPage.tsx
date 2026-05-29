@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Microscope, ShieldCheck, Search, FileText, Loader2 } from 'lucide-react';
+import { ShieldCheck, Search, FileText, Loader2 } from 'lucide-react';
 import { api, setToken } from '../lib/api';
 
 const PROMISES = [
@@ -66,18 +66,13 @@ export function LoginPage() {
   return (
     <div className="mx-auto grid max-w-5xl overflow-hidden rounded-3xl border border-slate-200/70 shadow-card lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between bg-gradient-to-br from-primary-600 via-primary-700 to-emerald-700 p-10 text-white lg:flex">
+      <div className="relative hidden flex-col justify-between bg-gradient-to-br from-primary-700 via-primary-800 to-primary-900 p-10 text-white lg:flex">
         <div className="bg-grid absolute inset-0 opacity-20" />
         <div className="relative">
-          <div className="flex items-center gap-2.5 font-semibold">
-            <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/15 ring-1 ring-white/25">
-              <Microscope className="h-[18px] w-[18px]" strokeWidth={2} />
-            </span>
-            EvidentiaDental
-          </div>
+          <img src="/logo.png" alt="EvidentiaDental" className="h-9 w-auto brightness-0 invert" />
           <h1 className="mt-12 text-3xl font-semibold leading-tight tracking-tight">
             Evidência dentária verificada,
-            <span className="text-emerald-200"> sem alucinações.</span>
+            <span className="text-gold-300"> sem alucinações.</span>
           </h1>
           <p className="mt-3 max-w-sm leading-relaxed text-white/80">
             Da pergunta clínica à mini-síntese citável em 90 segundos.

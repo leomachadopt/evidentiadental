@@ -4,18 +4,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Brand accent: deep clinical teal (desaturated, not the AI sky-blue).
+        // Brand navy — dominant color from logo ("Evidentia" + icon).
         primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
+          50:  '#f0f4f9',
+          100: '#d8e4ef',
+          200: '#b1c8de',
+          300: '#7fa3c0',
+          400: '#4e7da1',
+          500: '#2f5a7e',
+          600: '#1e3352',
+          700: '#172843',
+          800: '#101e33',
+          900: '#0a1422',
+        },
+        // Brand gold — accent color from logo ("Dental").
+        gold: {
+          50:  '#fdf8ed',
+          100: '#f8efd0',
+          200: '#f0d99b',
+          300: '#e5c165',
+          400: '#d4a73c',
+          500: '#bf9535',
+          600: '#a37c28',
+          700: '#85631e',
+          800: '#664c16',
+          900: '#4a360f',
         },
       },
       fontFamily: {

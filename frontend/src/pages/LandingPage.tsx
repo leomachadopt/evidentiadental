@@ -51,7 +51,7 @@ export function LandingPage() {
             </span>
             <h1 className="mt-5 text-4xl font-semibold leading-[1.05] tracking-tight text-slate-900 md:text-5xl">
               A resposta clínica que demorava uma tarde,
-              <span className="text-primary-600"> em 90 segundos.</span>
+              <span className="text-gold-500"> em 90 segundos.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
               Faz uma pergunta dentária em português. O EvidentiaDental pesquisa as bases
@@ -74,7 +74,7 @@ export function LandingPage() {
           <div className="card lg:ml-auto lg:max-w-md">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium uppercase tracking-wide text-slate-400">Mini-síntese</span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              <span className="inline-flex items-center gap-1 rounded-full bg-gold-50 px-2 py-0.5 text-xs font-medium text-gold-700">
                 <ShieldCheck className="h-3 w-3" /> Citações validadas
               </span>
             </div>
@@ -107,8 +107,8 @@ export function LandingPage() {
       {/* ===== PROBLEM / CONTRAST — sets the "before" (Contrast + Loss Aversion) ===== */}
       <section className="py-12">
         <h2 className="text-center text-2xl font-semibold tracking-tight md:text-3xl">
-          Hoje, a evidência custa-te <span className="text-primary-600">tempo</span> ou{' '}
-          <span className="text-primary-600">confiança</span>.
+          Hoje, a evidência custa-te <span className="text-gold-500">tempo</span> ou{' '}
+          <span className="text-gold-500">confiança</span>.
         </h2>
         <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-2">
           <div className="card">
@@ -352,9 +352,9 @@ function PriceCard({
   note?: string;
 }) {
   return (
-    <div className={`card flex flex-col ${highlight ? 'border-primary-400 ring-1 ring-primary-200' : ''}`}>
+    <div className={`card flex flex-col ${highlight ? 'border-gold-400 ring-1 ring-gold-200' : ''}`}>
       {highlight && (
-        <span className="mb-2 self-start rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
+        <span className="mb-2 self-start rounded-full bg-gold-100 px-2 py-0.5 text-xs font-medium text-gold-700">
           Recomendado
         </span>
       )}
@@ -363,7 +363,7 @@ function PriceCard({
         <span className="text-3xl font-bold tracking-tight">{price}</span>
         <span className="text-sm text-slate-500">{period}</span>
       </div>
-      {note && <div className="mt-1 text-xs text-primary-700">{note}</div>}
+      {note && <div className="mt-1 text-xs text-gold-600">{note}</div>}
       <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-700">
         {features.map((f) => (
           <li key={f} className="flex items-start gap-2">

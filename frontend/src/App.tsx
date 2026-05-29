@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
-import { Microscope, Menu, X, LogOut } from 'lucide-react';
+import { Menu, X, LogOut } from 'lucide-react';
 import { NewSearchPage } from './pages/NewSearchPage';
 import { SearchResultsPage } from './pages/SearchResultsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -46,13 +46,8 @@ function navClass(active: boolean) {
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2.5 font-semibold text-slate-900">
-      <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary-600 text-white shadow-sm">
-        <Microscope className="h-[18px] w-[18px]" strokeWidth={2} />
-      </span>
-      <span className="tracking-tight">
-        Evidentia<span className="text-primary-600">Dental</span>
-      </span>
+    <Link to="/" className="flex items-center">
+      <img src="/logo.png" alt="EvidentiaDental" className="h-9 w-auto" />
     </Link>
   );
 }
