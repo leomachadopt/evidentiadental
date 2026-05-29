@@ -1,21 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  UserPlus,
-  Users,
-  Check,
-  X,
-  Trash2,
-  Unlock,
-  Download,
-  Send,
-  Inbox,
-  ExternalLink,
-  Search,
-} from 'lucide-react';
+import { UserPlus, Users, Check, X, Trash2, Inbox, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { Avatar } from '../components/Avatar';
+import { SavedArticleCard } from '../components/SavedArticleCard';
 
 const PERIODS = [
   { key: 'all', label: 'Tudo' },
@@ -45,12 +34,6 @@ function inPeriod(iso: string, period: PeriodKey): boolean {
 
 function parseAuthors(a: any): any[] {
   return typeof a === 'string' ? JSON.parse(a) : a ?? [];
-}
-
-function authorLine(authors: any, journal: string | null, year: number | null): string {
-  const list = parseAuthors(authors);
-  const names = list.slice(0, 3).map((a: any) => a.name).join(', ') + (list.length > 3 ? ' et al' : '');
-  return [names, journal, year].filter(Boolean).join(' · ');
 }
 
 export function FriendsPage() {
@@ -306,13 +289,13 @@ export function FriendsPage() {
           <ul className="divide-y divide-slate-100">
             {friends.data.friends.map((f) => (
               <li key={f.friendship_id} className="flex items-center justify-between py-2 text-sm">
-                <span className="flex items-center gap-2">
+                <Link to={`/friends/${f.id}`} className="flex min-w-0 items-center gap-2 hover:opacity-80">
                   <Avatar url={f.avatar_url} name={f.name ?? f.email} size={32} />
-                  <span>
-                    <strong>{f.name ?? f.email}</strong>
+                  <span className="min-w-0">
+                    <strong className="hover:underline">{f.name ?? f.email}</strong>
                     {f.name && <span className="text-slate-400"> · {f.email}</span>}
                   </span>
-                </span>
+                </Link>
                 <button className="btn-ghost text-rose-600" onClick={() => remove.mutate(f.id)} title="Remover">
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -366,62 +349,14 @@ export function FriendsPage() {
         ) : (
           <ul className="space-y-3">
             {filteredActivity.map((it) => (
-              <li key={`${it.friend_id}-${it.paper_id}`} className="card">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-3">
-                    <Avatar url={it.friend_avatar} name={it.friend_name} size={36} />
-                    <div className="min-w-0">
-                      <p className="text-xs text-primary-600">{it.friend_name ?? 'Um colega'} guardou</p>
-                      <p className="font-medium leading-snug">{it.title}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">
-                        {authorLine(it.authors, it.journal, it.year)}
-                      </p>
-                    </div>
-                  </div>
-                  {it.is_open_access && (
-                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
-                      Open access
-                    </span>
-                  )}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {it.is_open_access ? (
-                    <button className="btn-ghost text-xs" onClick={() => openOA(it.paper_id)}>
-                      <Unlock className="h-3.5 w-3.5" /> Aceder (OA)
-                    </button>
-                  ) : it.friend_has_pdf && it.friend_accepts_requests ? (
-                    <button className="btn-ghost text-xs" onClick={() => askPdf(it.paper_id, it.friend_id)}>
-                      <Send className="h-3.5 w-3.5" /> Pedir PDF a {it.friend_name ?? 'colega'}
-                    </button>
-                  ) : null}
-
-                  {it.pmid && (
-                    <a
-                      className="btn-ghost text-xs"
-                      href={`https://pubmed.ncbi.nlm.nih.gov/${it.pmid}/`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" /> PubMed
-                    </a>
-                  )}
-
-                  {it.in_my_library ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 text-xs text-slate-400">
-                      <Check className="h-3.5 w-3.5" /> Na tua biblioteca
-                    </span>
-                  ) : (
-                    <button
-                      className="btn-primary text-xs"
-                      onClick={() => importItem.mutate(it.paper_id)}
-                      disabled={importItem.isPending}
-                    >
-                      <Download className="h-3.5 w-3.5" /> Adicionar à biblioteca
-                    </button>
-                  )}
-                </div>
-              </li>
+              <SavedArticleCard
+                key={`${it.friend_id}-${it.paper_id}`}
+                item={it}
+                importing={importItem.isPending}
+                onOpenOA={openOA}
+                onAskPdf={askPdf}
+                onImport={(id) => importItem.mutate(id)}
+              />
             ))}
           </ul>
         )}

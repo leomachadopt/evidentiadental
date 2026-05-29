@@ -12,6 +12,7 @@ import {
   listPendingIncoming,
   removeFriend,
   friendActivity,
+  friendProfile,
   createPdfRequest,
   listIncomingPdfRequests,
   resolvePdfRequest,
@@ -97,6 +98,13 @@ friendsRouter.delete('/:friendId', async (req, res) => {
 // GET /api/friends/activity — friends' recent saves (no private notes)
 friendsRouter.get('/activity', async (req, res) => {
   res.json({ activity: await friendActivity(req.userId!) });
+});
+
+// GET /api/friends/:friendId/profile — one colleague's profile + their saves
+friendsRouter.get('/:friendId/profile', async (req, res) => {
+  const data = await friendProfile(req.userId!, req.params.friendId);
+  if (!data) return res.status(404).json({ error: 'Colega não encontrado.' });
+  res.json(data);
 });
 
 // POST /api/friends/import { paperId, collectionId? } — import metadata only
