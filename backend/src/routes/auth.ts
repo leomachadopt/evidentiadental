@@ -96,11 +96,12 @@ authRouter.get('/me', authRequired, async (req, res) => {
     id: string;
     email: string;
     name: string | null;
+    avatar_url: string | null;
     is_admin: boolean;
     subscription_status: string | null;
     current_period_end: string | null;
   }>(
-    'SELECT id, email, name, is_admin, subscription_status, current_period_end FROM users WHERE id = $1',
+    'SELECT id, email, name, avatar_url, is_admin, subscription_status, current_period_end FROM users WHERE id = $1',
     [req.userId],
   );
   if (result.rows.length === 0) return res.status(404).json({ error: 'Utilizador não encontrado' });
@@ -110,6 +111,7 @@ authRouter.get('/me', authRequired, async (req, res) => {
     id: u.id,
     email: u.email,
     name: u.name,
+    avatarUrl: u.avatar_url,
     isAdmin: u.is_admin,
     subscriptionStatus: u.subscription_status,
     isTrialing: u.subscription_status === 'trialing',

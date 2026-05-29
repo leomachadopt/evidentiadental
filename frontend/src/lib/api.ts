@@ -68,6 +68,11 @@ async function openInNewTab(path: string) {
 export interface Settings {
   libkeyLibraryId: string | null;
   ezproxyPrefix: string | null;
+  name: string | null;
+  speciality: string | null;
+  country: string | null;
+  city: string | null;
+  avatarUrl: string | null;
   shareLibraryActivity: boolean;
   acceptPdfRequests: boolean;
   whatsappNumber: string | null;
@@ -78,6 +83,7 @@ export interface Friend {
   id: string;
   name: string | null;
   email: string;
+  avatar_url: string | null;
   since: string;
 }
 
@@ -86,6 +92,7 @@ export interface PendingFriendRequest {
   id: string;
   name: string | null;
   email: string;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -101,6 +108,7 @@ export interface FriendActivityItem {
   is_open_access: boolean;
   friend_id: string;
   friend_name: string | null;
+  friend_avatar: string | null;
   friend_has_pdf: boolean;
   friend_accepts_requests: boolean;
   in_my_library: boolean;
@@ -227,10 +235,24 @@ export const api = {
       isOpenAccess: boolean;
     }>(`/api/papers/${paperId}/access`),
 
-  // Institutional access + social/privacy settings
+  // Profile + institutional access + social/privacy settings
   getSettings: () => request<Settings>('/api/settings'),
   updateSettings: (body: Partial<Settings>) =>
     request<Settings>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
+
+  // Avatar (browser → Vercel Blob direct, then persist the URL in settings)
+  uploadAvatar: async (file: File): Promise<string> => {
+    const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `avatars/${Date.now()}-${safe}`;
+    const blob = await upload(path, file, {
+      access: 'public',
+      contentType: file.type,
+      handleUploadUrl: `${API_URL}/api/library/blob-upload`,
+      clientPayload: getToken() ?? '',
+    });
+    await request('/api/settings', { method: 'PATCH', body: JSON.stringify({ avatarUrl: blob.url }) });
+    return blob.url;
+  },
 
   // Friends (social layer)
   listFriends: () => request<{ friends: Friend[] }>('/api/friends'),
@@ -269,6 +291,7 @@ export const api = {
       id: string;
       email: string;
       name: string | null;
+      avatarUrl: string | null;
       isAdmin: boolean;
       subscriptionStatus: string | null;
       isTrialing: boolean;
