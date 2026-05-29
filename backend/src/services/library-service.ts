@@ -28,6 +28,10 @@ export interface LibraryItem {
   year: number | null;
   is_open_access: boolean;
   oa_pdf_url: string | null;
+  // a mutually-followed colleague who has this paper's PDF and accepts requests
+  // (only relevant for paywalled papers I don't already have)
+  colleague_id: string | null;
+  colleague_name: string | null;
 }
 
 export interface Collection {
@@ -164,10 +168,21 @@ export async function listLibrary(
     `SELECT li.id, li.paper_id, li.collection_id, c.name AS collection_name,
             li.tags, li.note, li.added_at, li.pdf_url, li.pdf_name, li.pdf_size,
             p.pmid, p.doi, p.nct_id, p.title, p.authors, p.journal, p.year,
-            p.is_open_access, p.oa_pdf_url
+            p.is_open_access, p.oa_pdf_url,
+            col.colleague_id, col.colleague_name
        FROM library_items li
        JOIN papers p ON p.id = li.paper_id
        LEFT JOIN collections c ON c.id = li.collection_id
+       LEFT JOIN LATERAL (
+         SELECT u2.id AS colleague_id, u2.name AS colleague_name
+           FROM follows f1
+           JOIN follows f2 ON f2.follower_id = f1.followee_id AND f2.followee_id = $1
+           JOIN users u2 ON u2.id = f1.followee_id
+           JOIN library_items oli
+             ON oli.user_id = u2.id AND oli.paper_id = li.paper_id AND oli.pdf_url IS NOT NULL
+          WHERE f1.follower_id = $1 AND u2.accept_pdf_requests = TRUE
+          LIMIT 1
+       ) col ON TRUE
       WHERE ${conditions.join(' AND ')}
       ORDER BY li.added_at DESC`,
     params,
