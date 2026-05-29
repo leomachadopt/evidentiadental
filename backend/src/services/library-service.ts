@@ -232,6 +232,32 @@ export async function removeLibraryItem(userId: string, itemId: string): Promise
   return { pdfUrl: result.rows[0].pdf_url };
 }
 
+/**
+ * Whether an item's open-access PDF can be materialized into the user's blob:
+ * the item is theirs, has no file yet, and the paper is OA with an OA PDF URL.
+ * Returns the source URL + a title for naming, or null when there's nothing to do.
+ */
+export async function getOaMaterializeTarget(
+  userId: string,
+  itemId: string,
+): Promise<{ oaUrl: string; title: string } | null> {
+  const r = await query<{
+    pdf_url: string | null;
+    is_open_access: boolean;
+    oa_pdf_url: string | null;
+    title: string;
+  }>(
+    `SELECT li.pdf_url, p.is_open_access, p.oa_pdf_url, p.title
+       FROM library_items li
+       JOIN papers p ON p.id = li.paper_id
+      WHERE li.id = $1 AND li.user_id = $2`,
+    [itemId, userId],
+  );
+  const row = r.rows[0];
+  if (!row || row.pdf_url || !row.is_open_access || !row.oa_pdf_url) return null;
+  return { oaUrl: row.oa_pdf_url, title: row.title };
+}
+
 // ----------------------------------------------------------------------------
 // PDF attachment (file lives in object storage; we store URL + metadata)
 // ----------------------------------------------------------------------------

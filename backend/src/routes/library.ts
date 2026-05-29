@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { del } from '@vercel/blob';
+import { del, put } from '@vercel/blob';
 import { authRequired } from '../middleware/auth.js';
 import { config } from '../lib/config.js';
 import {
@@ -14,6 +14,7 @@ import {
   removeLibraryItem,
   attachPdf,
   detachPdf,
+  getOaMaterializeTarget,
 } from '../services/library-service.js';
 
 export const libraryRouter = Router();
@@ -29,6 +30,33 @@ async function deleteBlob(url: string | null | undefined) {
     console.error('[library] blob del failed:', e?.message ?? e);
   }
 }
+
+// POST /api/library/:id/materialize-oa — fetch an open-access PDF into the
+// user's own blob so it shows as an attached file (not just an external link).
+// Validates the fetched bytes are a real PDF; best-effort (ok:false otherwise).
+libraryRouter.post('/:id/materialize-oa', async (req, res) => {
+  if (!config.BLOB_READ_WRITE_TOKEN) return res.json({ ok: false });
+  const target = await getOaMaterializeTarget(req.userId!, req.params.id);
+  if (!target) return res.json({ ok: false });
+  try {
+    const r = await fetch(target.oaUrl);
+    if (!r.ok) return res.json({ ok: false });
+    const buf = Buffer.from(await r.arrayBuffer());
+    // Reject landing pages / HTML masquerading as the PDF.
+    if (buf.subarray(0, 4).toString('latin1') !== '%PDF') return res.json({ ok: false });
+    const safe = (target.title || 'artigo').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'artigo';
+    const blob = await put(`library/oa/${Date.now()}-${safe}.pdf`, buf, {
+      access: 'public',
+      contentType: 'application/pdf',
+      token: config.BLOB_READ_WRITE_TOKEN,
+    });
+    await attachPdf(req.userId!, req.params.id, { url: blob.url, name: `${safe}.pdf`, size: buf.length });
+    res.json({ ok: true, pdf_url: blob.url, pdf_size: buf.length });
+  } catch (e: any) {
+    console.error('[library] materialize-oa failed:', e?.message ?? e);
+    res.json({ ok: false });
+  }
+});
 
 // ============================================================
 // Collections (folders)

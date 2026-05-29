@@ -73,7 +73,12 @@ a BD** — vai para **Vercel Blob** (`BLOB_READ_WRITE_TOKEN`); só guardamos `pd
 pdf_size` no item. Upload é **direto do browser** (`@vercel/blob/client` → endpoint
 `POST /api/library/blob-upload`, auth via JWT em `clientPayload`); o cliente confirma com
 `POST /api/library/:id/pdf`. Apagar item/PDF apaga o blob (best-effort). No-op gracioso se
-`BLOB_READ_WRITE_TOKEN` não estiver configurado.
+`BLOB_READ_WRITE_TOKEN` não estiver configurado. PDFs **open access** são **materializados no
+Blob** on-demand (`POST /api/library/:id/materialize-oa`: vai buscar ao `papers.oa_pdf_url`,
+valida que os bytes começam por `%PDF`, guarda no Blob do utilizador e anexa via `attachPdf`); o
+frontend dispara isto por item ao abrir a biblioteca, e o link externo "PDF grátis" fica só como
+fallback enquanto o ficheiro não chega. Objetivo: OA aparece como ficheiro anexo (com tamanho),
+não como link para o site do artigo.
 
 ## Camada social (colegas)
 

@@ -215,6 +215,12 @@ export const api = {
   },
   removePdf: (itemId: string) =>
     request<{ ok: boolean }>(`/api/library/${itemId}/pdf`, { method: 'DELETE' }),
+  // Fetch an OA PDF into the user's own blob so it shows as an attached file.
+  materializeOaPdf: (itemId: string) =>
+    request<{ ok: boolean; pdf_url?: string; pdf_size?: number }>(
+      `/api/library/${itemId}/materialize-oa`,
+      { method: 'POST' },
+    ),
 
   // Billing
   billingStatus: () =>
