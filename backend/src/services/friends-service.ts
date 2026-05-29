@@ -20,6 +20,7 @@ export interface Friend {
   id: string;
   name: string | null;
   email: string;
+  avatar_url: string | null;
   since: string;
 }
 
@@ -28,6 +29,7 @@ export interface PendingRequest {
   id: string;
   name: string | null;
   email: string;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -43,6 +45,7 @@ export interface ActivityItem {
   is_open_access: boolean;
   friend_id: string;
   friend_name: string | null;
+  friend_avatar: string | null;
   friend_has_pdf: boolean;
   friend_accepts_requests: boolean;
   in_my_library: boolean;
@@ -122,7 +125,7 @@ export async function respondFriendRequest(
 export async function listFriends(userId: string): Promise<Friend[]> {
   const r = await query<Friend>(
     `SELECT f.id AS friendship_id, f.created_at AS since,
-            u.id, u.name, u.email
+            u.id, u.name, u.email, u.avatar_url
        FROM friendships f
        JOIN users u
          ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
@@ -135,7 +138,7 @@ export async function listFriends(userId: string): Promise<Friend[]> {
 
 export async function listPendingIncoming(userId: string): Promise<PendingRequest[]> {
   const r = await query<PendingRequest>(
-    `SELECT f.id AS friendship_id, f.created_at, u.id, u.name, u.email
+    `SELECT f.id AS friendship_id, f.created_at, u.id, u.name, u.email, u.avatar_url
        FROM friendships f
        JOIN users u ON u.id = f.requester_id
       WHERE f.addressee_id = $1 AND f.status = 'pending'
@@ -164,7 +167,7 @@ export async function friendActivity(userId: string, limit = 50): Promise<Activi
   const r = await query<ActivityItem>(
     `SELECT li.added_at, p.id AS paper_id, p.pmid, p.doi, p.title, p.authors,
             p.journal, p.year, p.is_open_access,
-            u.id AS friend_id, u.name AS friend_name,
+            u.id AS friend_id, u.name AS friend_name, u.avatar_url AS friend_avatar,
             (li.pdf_url IS NOT NULL) AS friend_has_pdf,
             u.accept_pdf_requests AS friend_accepts_requests,
             EXISTS (

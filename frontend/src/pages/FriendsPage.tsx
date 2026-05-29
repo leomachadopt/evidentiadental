@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   UserPlus,
@@ -12,8 +13,36 @@ import {
   Inbox,
   Loader2,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { Avatar } from '../components/Avatar';
+
+const PERIODS = [
+  { key: 'all', label: 'Tudo' },
+  { key: 'today', label: 'Hoje' },
+  { key: 'yesterday', label: 'Ontem' },
+  { key: '7d', label: 'Últimos 7 dias' },
+  { key: '30d', label: 'Últimos 30 dias' },
+] as const;
+
+type PeriodKey = (typeof PERIODS)[number]['key'];
+
+function inPeriod(iso: string, period: PeriodKey): boolean {
+  if (period === 'all') return true;
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'today') return d >= startOfToday;
+  if (period === 'yesterday') {
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfToday.getDate() - 1);
+    return d >= startOfYesterday && d < startOfToday;
+  }
+  const cutoff = new Date(startOfToday);
+  cutoff.setDate(startOfToday.getDate() - (period === '7d' ? 6 : 29));
+  return d >= cutoff;
+}
 
 function parseAuthors(a: any): any[] {
   return typeof a === 'string' ? JSON.parse(a) : a ?? [];
@@ -30,11 +59,28 @@ export function FriendsPage() {
   const [email, setEmail] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState('');
+  const [period, setPeriod] = useState<PeriodKey>('all');
 
   const friends = useQuery({ queryKey: ['friends'], queryFn: () => api.listFriends() });
   const requests = useQuery({ queryKey: ['friend-requests'], queryFn: () => api.listFriendRequests() });
   const activity = useQuery({ queryKey: ['friend-activity'], queryFn: () => api.friendActivity() });
   const incoming = useQuery({ queryKey: ['pdf-requests-incoming'], queryFn: () => api.incomingPdfRequests() });
+
+  const filteredActivity = useMemo(() => {
+    const items = activity.data?.activity ?? [];
+    const needle = q.trim().toLowerCase();
+    return items.filter((it) => {
+      if (!inPeriod(it.added_at, period)) return false;
+      if (!needle) return true;
+      const authors = parseAuthors(it.authors).map((a: any) => a.name).join(' ');
+      return [it.title, it.journal, it.friend_name, authors, it.year]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [activity.data, q, period]);
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['friends'] });
@@ -110,11 +156,14 @@ export function FriendsPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Colegas</h1>
         <p className="mt-1 text-sm text-slate-500">
           Vê o que os teus colegas estão a guardar e troca artigos. Artigos de acesso aberto abrem
-          diretamente; para os restantes, pedes o PDF ao colega — a troca acontece no vosso canal.
+          diretamente; para os restantes, pedes o PDF ao colega — a troca acontece no vosso canal. As
+          definições de partilha estão no teu{' '}
+          <Link to="/profile" className="text-primary-600 underline">
+            perfil
+          </Link>
+          .
         </p>
       </div>
-
-      <PrivacyPanel />
 
       {/* Add friend */}
       <section className="card space-y-3">
@@ -150,9 +199,12 @@ export function FriendsPage() {
           <ul className="space-y-2">
             {requests.data!.requests.map((r) => (
               <li key={r.friendship_id} className="flex items-center justify-between gap-3 text-sm">
-                <span>
-                  <strong>{r.name ?? r.email}</strong>
-                  {r.name && <span className="text-slate-400"> · {r.email}</span>}
+                <span className="flex items-center gap-2">
+                  <Avatar url={r.avatar_url} name={r.name ?? r.email} size={32} />
+                  <span>
+                    <strong>{r.name ?? r.email}</strong>
+                    {r.name && <span className="text-slate-400"> · {r.email}</span>}
+                  </span>
                 </span>
                 <span className="flex gap-2">
                   <button
@@ -221,9 +273,12 @@ export function FriendsPage() {
           <ul className="divide-y divide-slate-100">
             {friends.data.friends.map((f) => (
               <li key={f.friendship_id} className="flex items-center justify-between py-2 text-sm">
-                <span>
-                  <strong>{f.name ?? f.email}</strong>
-                  {f.name && <span className="text-slate-400"> · {f.email}</span>}
+                <span className="flex items-center gap-2">
+                  <Avatar url={f.avatar_url} name={f.name ?? f.email} size={32} />
+                  <span>
+                    <strong>{f.name ?? f.email}</strong>
+                    {f.name && <span className="text-slate-400"> · {f.email}</span>}
+                  </span>
                 </span>
                 <button className="btn-ghost text-rose-600" onClick={() => remove.mutate(f.id)} title="Remover">
                   <Trash2 className="h-4 w-4" />
@@ -239,21 +294,56 @@ export function FriendsPage() {
       {/* Activity feed */}
       <section className="space-y-3">
         <h2 className="text-lg font-semibold tracking-tight">O que os teus colegas guardaram</h2>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Procurar por título, autor, revista…"
+              className="input-field pl-9"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setPeriod(p.key)}
+                className={
+                  period === p.key
+                    ? 'rounded-lg bg-primary-50 px-2.5 py-1.5 text-xs font-medium text-primary-700'
+                    : 'rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100'
+                }
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {activity.isLoading ? (
           <p className="text-sm text-slate-500">A carregar…</p>
-        ) : activity.data?.activity.length ? (
+        ) : (activity.data?.activity.length ?? 0) === 0 ? (
+          <p className="text-sm text-slate-500">
+            Sem atividade ainda. Os saves dos teus colegas aparecem aqui quando eles ativam a partilha.
+          </p>
+        ) : filteredActivity.length === 0 ? (
+          <p className="text-sm text-slate-500">Nada corresponde à tua busca/filtro.</p>
+        ) : (
           <ul className="space-y-3">
-            {activity.data.activity.map((it) => (
+            {filteredActivity.map((it) => (
               <li key={`${it.friend_id}-${it.paper_id}`} className="card">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="text-xs text-primary-600">
-                      {it.friend_name ?? 'Um colega'} guardou
-                    </p>
-                    <p className="font-medium leading-snug">{it.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {authorLine(it.authors, it.journal, it.year)}
-                    </p>
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Avatar url={it.friend_avatar} name={it.friend_name} size={36} />
+                    <div className="min-w-0">
+                      <p className="text-xs text-primary-600">{it.friend_name ?? 'Um colega'} guardou</p>
+                      <p className="font-medium leading-snug">{it.title}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {authorLine(it.authors, it.journal, it.year)}
+                      </p>
+                    </div>
                   </div>
                   {it.is_open_access && (
                     <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">
@@ -301,90 +391,8 @@ export function FriendsPage() {
               </li>
             ))}
           </ul>
-        ) : (
-          <p className="text-sm text-slate-500">
-            Sem atividade ainda. Os saves dos teus colegas aparecem aqui quando eles ativam a partilha.
-          </p>
         )}
       </section>
     </div>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// Privacy / sharing preferences
-// ----------------------------------------------------------------------------
-
-function PrivacyPanel() {
-  const qc = useQueryClient();
-  const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.getSettings() });
-  const [whatsapp, setWhatsapp] = useState('');
-
-  useEffect(() => {
-    if (settings.data) setWhatsapp(settings.data.whatsappNumber ?? '');
-  }, [settings.data]);
-
-  const save = useMutation({
-    mutationFn: (patch: Parameters<typeof api.updateSettings>[0]) => api.updateSettings(patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['settings'] }),
-  });
-
-  const s = settings.data;
-
-  return (
-    <section className="card space-y-4">
-      <h2 className="text-lg font-semibold tracking-tight">Privacidade</h2>
-      <p className="text-xs text-slate-500">
-        Tudo desligado por defeito. Só partilhamos que guardaste um artigo (nunca as tuas notas).
-      </p>
-
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={s?.shareLibraryActivity ?? false}
-          onChange={(e) => save.mutate({ shareLibraryActivity: e.target.checked })}
-        />
-        <span>
-          <strong>Partilhar a minha atividade</strong> com os meus colegas (os artigos que guardo
-          aparecem no feed deles).
-        </span>
-      </label>
-
-      <label className="flex items-start gap-3 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5"
-          checked={s?.acceptPdfRequests ?? false}
-          onChange={(e) => save.mutate({ acceptPdfRequests: e.target.checked })}
-        />
-        <span>
-          <strong>Aceitar pedidos de PDF</strong> de colegas (recebes um aviso; a troca é por
-          WhatsApp ou email, fora da plataforma).
-        </span>
-      </label>
-
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium">Número de WhatsApp (para pedidos)</label>
-        <div className="flex gap-2">
-          <input
-            value={whatsapp}
-            onChange={(e) => setWhatsapp(e.target.value)}
-            placeholder="+351 912 345 678"
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          />
-          <button
-            className="btn-ghost"
-            onClick={() => save.mutate({ whatsappNumber: whatsapp })}
-            disabled={save.isPending}
-          >
-            Guardar
-          </button>
-        </div>
-        <p className="text-xs text-slate-400">
-          Sem número, os pedidos chegam-te por email. O contacto só é usado quando um colega te pede um PDF.
-        </p>
-      </div>
-    </section>
   );
 }

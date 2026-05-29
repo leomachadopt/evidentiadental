@@ -23,12 +23,15 @@ export async function handleBlobUpload(req: Request, res: Response) {
     const jsonResponse = await handleUpload({
       body: req.body as HandleUploadBody,
       request: req,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
         if (!clientPayload) throw new Error('Não autenticado');
         const payload = jwt.verify(clientPayload, config.JWT_SECRET) as { userId: string };
+        const isAvatar = pathname.startsWith('avatars/');
         return {
-          allowedContentTypes: ['application/pdf'],
-          maximumSizeInBytes: 30 * 1024 * 1024, // 30 MB
+          allowedContentTypes: isAvatar
+            ? ['image/png', 'image/jpeg', 'image/webp']
+            : ['application/pdf'],
+          maximumSizeInBytes: isAvatar ? 5 * 1024 * 1024 : 30 * 1024 * 1024,
           tokenPayload: JSON.stringify({ userId: payload.userId }),
         };
       },
