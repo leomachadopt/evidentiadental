@@ -64,7 +64,7 @@ export function SavedArticleCard({
           <button className="btn-ghost text-xs" onClick={() => onOpenOA(it.paper_id)}>
             <Unlock className="h-3.5 w-3.5" /> Aceder (OA)
           </button>
-        ) : it.friend_has_pdf && it.friend_accepts_requests ? (
+        ) : it.friend_has_pdf && it.friend_accepts_requests && it.mutual ? (
           <button className="btn-ghost text-xs" onClick={() => onAskPdf(it.paper_id, it.friend_id)}>
             <Send className="h-3.5 w-3.5" /> Pedir PDF a {it.friend_name ?? 'colega'}
           </button>
