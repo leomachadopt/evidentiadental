@@ -323,7 +323,7 @@ export function LibraryPage() {
                         </a>
                       )}
                       {item.pdf_url ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-2.5 pr-1.5 font-medium text-primary-700">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 py-1 pl-2.5 pr-1.5 font-medium text-emerald-700">
                           <a
                             href={item.pdf_url}
                             target="_blank"
@@ -335,7 +335,7 @@ export function LibraryPage() {
                           <button
                             onClick={() => removePdfMut.mutate(item.id)}
                             title="Remover PDF"
-                            className="text-primary-400 transition hover:text-red-600"
+                            className="text-emerald-400 transition hover:text-red-600"
                           >
                             <X className="h-3 w-3" />
                           </button>
