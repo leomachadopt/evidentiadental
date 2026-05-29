@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ExternalLink,
@@ -86,6 +86,24 @@ export function LibraryPage() {
     mutationFn: ({ id, note }: { id: string; note: string }) => api.updateLibraryItem(id, { note }),
     onSuccess: invalidate,
   });
+
+  // Materialize OA PDFs into our own blob so they show as attached files (with
+  // size), not external links. Runs once per item; the "PDF grátis" link stays
+  // as a fallback until the file lands.
+  const attemptedOa = useRef<Set<string>>(new Set());
+  const materializeMut = useMutation({
+    mutationFn: (itemId: string) => api.materializeOaPdf(itemId),
+    onSuccess: (r) => { if (r.ok) invalidate(); },
+  });
+  useEffect(() => {
+    for (const it of allItems) {
+      if (it.is_open_access && !it.pdf_url && it.oa_pdf_url && !attemptedOa.current.has(it.id)) {
+        attemptedOa.current.add(it.id);
+        materializeMut.mutate(it.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allItems]);
 
   async function handleUpload(itemId: string, file?: File | null) {
     if (!file) return;
@@ -293,14 +311,15 @@ export function LibraryPage() {
                           PMID {item.pmid} <ExternalLink className="h-3 w-3" />
                         </a>
                       )}
-                      {item.is_open_access && item.oa_pdf_url && (
+                      {item.is_open_access && item.oa_pdf_url && !item.pdf_url && (
                         <a
                           href={item.oa_pdf_url}
                           target="_blank"
                           rel="noopener"
                           className="inline-flex items-center gap-1 text-emerald-700 hover:underline"
                         >
-                          <Unlock className="h-3 w-3" /> PDF grátis
+                          <Unlock className="h-3 w-3" />
+                          {materializeMut.isPending ? 'A obter PDF…' : 'PDF grátis'}
                         </a>
                       )}
                       {item.pdf_url ? (
