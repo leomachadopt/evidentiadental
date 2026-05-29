@@ -75,6 +75,30 @@ pdf_size` no item. Upload é **direto do browser** (`@vercel/blob/client` → en
 `POST /api/library/:id/pdf`. Apagar item/PDF apaga o blob (best-effort). No-op gracioso se
 `BLOB_READ_WRITE_TOKEN` não estiver configurado.
 
+## Camada social (colegas)
+
+Grafo de **amizades mútuas** (`friendships`, consentimento dos dois lados) para retenção.
+Cada utilizador vê os artigos que os colegas guardaram recentemente (`friends-service.ts` →
+`GET /api/friends/activity`) e pode importá-los para a sua biblioteca (só metadados, reusa
+`addToLibrary`). Tudo é **opt-in** (`users.share_library_activity`, `accept_pdf_requests`,
+geridos no Perfil); a `note` privada de cada item **nunca** é exposta — só o facto do save e a
+data. Perfil tem foto (`users.avatar_url`, no Blob via prefixo `avatars/`), cidade, nome,
+especialidade.
+
+**Princípio não-negociável (PDFs paywalled):** a plataforma **nunca move, serve, aloja ou
+relaya** um PDF paywalled entre utilizadores — isso é redistribuição e é o que afundou o
+ResearchGate. A bifurcação por artigo é obrigatória:
+- **Open access** (`papers.is_open_access`) → servido pela via legal de sempre (`fulltext-service`
+  / `GET /api/papers/:id/access`).
+- **Paywalled que um colega tem** → só registamos o pedido (`pdf_requests`) e devolvemos um
+  **deep-link externo** (WhatsApp/email — o clássico "pedido de reprint"); o ficheiro viaja
+  peer-to-peer, fora da plataforma. O backend rejeita pedidos de PDF para artigos OA e para
+  quem não tem o ficheiro ou não fez opt-in.
+
+Este princípio é irmão da regra anti-Sci-Hub acima: a fronteira é sempre *quem* move os bytes
+e *com que propósito*. Se for pedido para a plataforma transferir o ficheiro paywalled (mesmo
+"só entre amigos", mesmo com clique do utilizador), **recusar** e oferecer o modelo reprint.
+
 ## Billing & limites
 
 **Um único plano pago** (mesmas funcionalidades), cobrado **mensal (9,90€)** ou **anual
