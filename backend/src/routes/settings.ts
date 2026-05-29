@@ -23,6 +23,7 @@ export interface InstitutionalSettings {
   shareLibraryActivity: boolean;
   acceptPdfRequests: boolean;
   whatsappNumber: string | null;
+  discoverable: boolean;
 }
 
 export async function getSettings(userId: string): Promise<InstitutionalSettings> {
@@ -37,10 +38,11 @@ export async function getSettings(userId: string): Promise<InstitutionalSettings
     share_library_activity: boolean;
     accept_pdf_requests: boolean;
     whatsapp_number: string | null;
+    discoverable: boolean;
   }>(
     `SELECT libkey_library_id, ezproxy_prefix,
             name, speciality, country, city, avatar_url,
-            share_library_activity, accept_pdf_requests, whatsapp_number
+            share_library_activity, accept_pdf_requests, whatsapp_number, discoverable
        FROM users WHERE id = $1`,
     [userId],
   );
@@ -56,6 +58,7 @@ export async function getSettings(userId: string): Promise<InstitutionalSettings
     shareLibraryActivity: row?.share_library_activity ?? false,
     acceptPdfRequests: row?.accept_pdf_requests ?? false,
     whatsappNumber: row?.whatsapp_number ?? null,
+    discoverable: row?.discoverable ?? true,
   };
 }
 
@@ -77,6 +80,7 @@ settingsRouter.patch('/', async (req, res) => {
     shareLibraryActivity: z.boolean().optional(),
     acceptPdfRequests: z.boolean().optional(),
     whatsappNumber: z.string().max(40).nullable().optional(),
+    discoverable: z.boolean().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
@@ -96,6 +100,7 @@ settingsRouter.patch('/', async (req, res) => {
   const bool: Record<string, string> = {
     shareLibraryActivity: 'share_library_activity',
     acceptPdfRequests: 'accept_pdf_requests',
+    discoverable: 'discoverable',
   };
 
   const sets: string[] = [];

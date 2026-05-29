@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -11,7 +11,6 @@ import {
   Download,
   Send,
   Inbox,
-  Loader2,
   ExternalLink,
   Search,
 } from 'lucide-react';
@@ -56,16 +55,26 @@ function authorLine(authors: any, journal: string | null, year: number | null): 
 
 export function FriendsPage() {
   const qc = useQueryClient();
-  const [email, setEmail] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
+  const [term, setTerm] = useState('');
+  const [debounced, setDebounced] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('all');
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(term.trim()), 300);
+    return () => clearTimeout(t);
+  }, [term]);
 
   const friends = useQuery({ queryKey: ['friends'], queryFn: () => api.listFriends() });
   const requests = useQuery({ queryKey: ['friend-requests'], queryFn: () => api.listFriendRequests() });
   const activity = useQuery({ queryKey: ['friend-activity'], queryFn: () => api.friendActivity() });
   const incoming = useQuery({ queryKey: ['pdf-requests-incoming'], queryFn: () => api.incomingPdfRequests() });
+  const peopleSearch = useQuery({
+    queryKey: ['user-search', debounced],
+    queryFn: () => api.searchUsers(debounced),
+    enabled: debounced.length >= 2,
+  });
 
   const filteredActivity = useMemo(() => {
     const items = activity.data?.activity ?? [];
@@ -88,24 +97,15 @@ export function FriendsPage() {
     qc.invalidateQueries({ queryKey: ['friend-activity'] });
   };
 
-  const addFriend = useMutation({
-    mutationFn: () => api.addFriend(email.trim()),
-    onSuccess: (r) => {
+  const addById = useMutation({
+    mutationFn: (userId: string) => api.addFriendById(userId),
+    onSuccess: () => {
       setError(null);
-      const msgs: Record<string, string> = {
-        sent: 'Pedido enviado.',
-        accepted: 'Já eram amigos pendentes — agora estão ligados!',
-        already_pending: 'Já tens um pedido pendente para este colega.',
-        already_friends: 'Já são amigos.',
-      };
-      setNotice(msgs[r.status] ?? 'Pedido enviado.');
-      setEmail('');
-      invalidateAll();
+      qc.invalidateQueries({ queryKey: ['user-search'] });
+      qc.invalidateQueries({ queryKey: ['friend-requests'] });
+      qc.invalidateQueries({ queryKey: ['friends'] });
     },
-    onError: (e: any) => {
-      setNotice(null);
-      setError(e.message ?? 'Não foi possível enviar o pedido.');
-    },
+    onError: (e: any) => setError(e.message ?? 'Não foi possível enviar o pedido.'),
   });
 
   const respond = useMutation({
@@ -165,31 +165,64 @@ export function FriendsPage() {
         </p>
       </div>
 
-      {/* Add friend */}
+      {/* Find colleagues by name */}
       <section className="card space-y-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <UserPlus className="h-5 w-5 text-primary-600" /> Adicionar colega
+          <UserPlus className="h-5 w-5 text-primary-600" /> Encontrar colegas
         </h2>
-        <form
-          className="flex flex-col gap-2 sm:flex-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (email.trim()) addFriend.mutate();
-          }}
-        >
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="email@do-colega.com"
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="Procurar colega por nome…"
+            className="input-field pl-9"
           />
-          <button type="submit" className="btn-primary" disabled={addFriend.isPending}>
-            {addFriend.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar pedido'}
-          </button>
-        </form>
-        {notice && <p className="text-sm text-emerald-600">{notice}</p>}
+        </div>
         {error && <p className="text-sm text-rose-600">{error}</p>}
+
+        {debounced.length >= 2 &&
+          (peopleSearch.isLoading ? (
+            <p className="text-sm text-slate-500">A procurar…</p>
+          ) : (peopleSearch.data?.results.length ?? 0) === 0 ? (
+            <p className="text-sm text-slate-500">Ninguém encontrado com esse nome.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {peopleSearch.data!.results.map((u) => (
+                <li key={u.id} className="flex items-center justify-between gap-3 py-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Avatar url={u.avatar_url} name={u.name} size={32} />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{u.name ?? 'Sem nome'}</span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {[u.speciality, u.city].filter(Boolean).join(' · ') || '—'}
+                      </span>
+                    </span>
+                  </span>
+                  {u.relationship === 'friends' ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                      <Check className="h-3.5 w-3.5" /> Amigos
+                    </span>
+                  ) : u.relationship === 'pending_out' ? (
+                    <span className="text-xs text-slate-400">Pendente</span>
+                  ) : u.relationship === 'pending_in' ? (
+                    <span className="text-xs text-primary-600">Pediu-te amizade</span>
+                  ) : (
+                    <button
+                      className="btn-primary text-xs"
+                      onClick={() => addById.mutate(u.id)}
+                      disabled={addById.isPending}
+                    >
+                      <UserPlus className="h-3.5 w-3.5" /> Adicionar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ))}
+        <p className="text-xs text-slate-400">
+          Só aparecem colegas que permitem ser encontrados. O email nunca é mostrado.
+        </p>
       </section>
 
       {/* Incoming friend requests */}

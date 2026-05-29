@@ -55,21 +55,36 @@ export interface ActivityItem {
 // Friendship graph
 // ----------------------------------------------------------------------------
 
-/**
- * Send (or auto-resolve) a friend request to a user identified by email.
- * Returns the resulting status so the UI can message accordingly.
- */
+export type FriendRequestStatus =
+  | 'sent'
+  | 'accepted'
+  | 'already_pending'
+  | 'already_friends'
+  | 'self'
+  | 'not_found'
+  | 'blocked';
+
+/** Send a friend request to a user found by email. */
 export async function sendFriendRequest(
   userId: string,
   targetEmail: string,
-): Promise<{ status: 'sent' | 'accepted' | 'already_pending' | 'already_friends' | 'self' | 'not_found' | 'blocked' }> {
+): Promise<{ status: FriendRequestStatus }> {
   const target = await query<{ id: string }>(
     'SELECT id FROM users WHERE lower(email) = lower($1)',
     [targetEmail],
   );
   if (target.rows.length === 0) return { status: 'not_found' };
-  const targetId = target.rows[0].id;
+  return sendFriendRequestById(userId, target.rows[0].id);
+}
+
+/** Send a friend request to a user found by id (used by name search). */
+export async function sendFriendRequestById(
+  userId: string,
+  targetId: string,
+): Promise<{ status: FriendRequestStatus }> {
   if (targetId === userId) return { status: 'self' };
+  const exists = await query('SELECT 1 FROM users WHERE id = $1', [targetId]);
+  if (exists.rows.length === 0) return { status: 'not_found' };
 
   const existing = await query<{ id: string; requester_id: string; addressee_id: string; status: string }>(
     `SELECT id, requester_id, addressee_id, status FROM friendships
@@ -157,6 +172,60 @@ export async function removeFriend(userId: string, friendId: string): Promise<bo
     [userId, friendId],
   );
   return r.rowCount > 0;
+}
+
+export interface UserSearchResult {
+  id: string;
+  name: string | null;
+  speciality: string | null;
+  city: string | null;
+  avatar_url: string | null;
+  // relationship with the searcher: none | pending_out | pending_in | friends
+  relationship: 'none' | 'pending_out' | 'pending_in' | 'friends';
+}
+
+/**
+ * Find discoverable users by name (case-insensitive). Never returns email.
+ * Each hit carries the relationship status so the UI shows the right action.
+ */
+export async function searchUsers(userId: string, term: string): Promise<UserSearchResult[]> {
+  const q = term.trim();
+  if (q.length < 2) return [];
+  const rows = await query<{
+    id: string;
+    name: string | null;
+    speciality: string | null;
+    city: string | null;
+    avatar_url: string | null;
+    status: string | null;
+    requester_id: string | null;
+  }>(
+    `SELECT u.id, u.name, u.speciality, u.city, u.avatar_url,
+            f.status, f.requester_id
+       FROM users u
+       LEFT JOIN friendships f
+         ON (f.requester_id = $1 AND f.addressee_id = u.id)
+         OR (f.requester_id = u.id AND f.addressee_id = $1)
+      WHERE u.id <> $1
+        AND u.discoverable = TRUE
+        AND u.name ILIKE '%' || $2 || '%'
+      ORDER BY u.name
+      LIMIT 20`,
+    [userId, q],
+  );
+  return rows.rows.map((r) => {
+    let relationship: UserSearchResult['relationship'] = 'none';
+    if (r.status === 'accepted') relationship = 'friends';
+    else if (r.status === 'pending') relationship = r.requester_id === userId ? 'pending_out' : 'pending_in';
+    return {
+      id: r.id,
+      name: r.name,
+      speciality: r.speciality,
+      city: r.city,
+      avatar_url: r.avatar_url,
+      relationship,
+    };
+  });
 }
 
 // ----------------------------------------------------------------------------
