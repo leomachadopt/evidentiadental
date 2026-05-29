@@ -102,7 +102,8 @@ export function FriendsPage() {
   });
 
   const importItem = useMutation({
-    mutationFn: (paperId: string) => api.importFromFriend(paperId),
+    mutationFn: ({ paperId, ownerId }: { paperId: string; ownerId: string }) =>
+      api.importFromFriend(paperId, ownerId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['friend-activity'] }),
   });
 
@@ -355,7 +356,7 @@ export function FriendsPage() {
                 importing={importItem.isPending}
                 onOpenOA={openOA}
                 onAskPdf={askPdf}
-                onImport={(id) => importItem.mutate(id)}
+                onImport={(pid, oid) => importItem.mutate({ paperId: pid, ownerId: oid })}
               />
             ))}
           </ul>

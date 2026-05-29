@@ -287,10 +287,14 @@ export const api = {
       sharesActivity: boolean;
       items: FriendActivityItem[];
     }>(`/api/friends/${friendId}/profile`),
-  importFromFriend: (paperId: string, collectionId?: string) =>
+  importFromFriend: (paperId: string, ownerId?: string, collectionId?: string) =>
     request<{ id: string }>('/api/friends/import', {
       method: 'POST',
-      body: JSON.stringify(collectionId ? { paperId, collectionId } : { paperId }),
+      body: JSON.stringify({
+        paperId,
+        ...(ownerId ? { ownerId } : {}),
+        ...(collectionId ? { collectionId } : {}),
+      }),
     }),
   requestPdf: (paperId: string, ownerId: string) =>
     request<{ id: string; channel: 'whatsapp' | 'email'; deeplink: string; ownerName: string | null }>(

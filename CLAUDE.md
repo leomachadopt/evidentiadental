@@ -79,8 +79,12 @@ pdf_size` no item. Upload é **direto do browser** (`@vercel/blob/client` → en
 
 Grafo de **amizades mútuas** (`friendships`, consentimento dos dois lados) para retenção.
 Cada utilizador vê os artigos que os colegas guardaram recentemente (`friends-service.ts` →
-`GET /api/friends/activity`) e pode importá-los para a sua biblioteca (só metadados, reusa
-`addToLibrary`). Tudo é **opt-in** (`users.share_library_activity`, `accept_pdf_requests`,
+`GET /api/friends/activity`) e pode importá-los para a sua biblioteca (`POST /api/friends/import`,
+reusa `addToLibrary`). No import, se o artigo for **open access** e o colega tiver um PDF
+carregado, o backend **copia o ficheiro para um blob próprio do importador** (`getImportablePdf`
+faz o gate de OA + amizade; `copyPdfBlob`), para a cópia ficar independente — se o colega apagar
+o dele, o teu não parte. **Paywalled nunca é copiado.** Tudo é **opt-in**
+(`users.share_library_activity`, `accept_pdf_requests`,
 geridos no Perfil); a `note` privada de cada item **nunca** é exposta — só o facto do save e a
 data. Perfil tem foto (`users.avatar_url`, no Blob via prefixo `avatars/`), cidade, nome,
 especialidade.

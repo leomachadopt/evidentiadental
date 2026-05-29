@@ -174,6 +174,43 @@ export async function removeFriend(userId: string, friendId: string): Promise<bo
   return r.rowCount > 0;
 }
 
+/**
+ * Returns a friend's uploaded PDF for a paper ONLY when it's safe to copy:
+ * the requester and owner are accepted friends AND the paper is open access.
+ * Returns null for paywalled papers (never copyable) or when the friend has no
+ * file. The caller duplicates the blob into the importer's own storage so the
+ * two copies are independent (deleting one never breaks the other).
+ */
+export async function getImportablePdf(
+  importerId: string,
+  ownerId: string,
+  paperId: string,
+): Promise<{ url: string; name: string | null; size: number | null } | null> {
+  const friends = await query(
+    `SELECT 1 FROM friendships
+      WHERE status = 'accepted'
+        AND ((requester_id = $1 AND addressee_id = $2) OR (requester_id = $2 AND addressee_id = $1))`,
+    [importerId, ownerId],
+  );
+  if (friends.rows.length === 0) return null;
+
+  const r = await query<{
+    pdf_url: string | null;
+    pdf_name: string | null;
+    pdf_size: number | null;
+    is_open_access: boolean;
+  }>(
+    `SELECT li.pdf_url, li.pdf_name, li.pdf_size, p.is_open_access
+       FROM library_items li
+       JOIN papers p ON p.id = li.paper_id
+      WHERE li.user_id = $1 AND li.paper_id = $2`,
+    [ownerId, paperId],
+  );
+  const row = r.rows[0];
+  if (!row || !row.pdf_url || !row.is_open_access) return null;
+  return { url: row.pdf_url, name: row.pdf_name, size: row.pdf_size };
+}
+
 export interface UserSearchResult {
   id: string;
   name: string | null;
