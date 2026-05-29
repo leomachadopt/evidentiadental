@@ -5,6 +5,8 @@ import { query } from '../db/client.js';
 import { addToLibrary } from '../services/library-service.js';
 import {
   sendFriendRequest,
+  sendFriendRequestById,
+  searchUsers,
   respondFriendRequest,
   listFriends,
   listPendingIncoming,
@@ -39,19 +41,32 @@ friendsRouter.get('/', async (req, res) => {
   res.json({ friends: await listFriends(req.userId!) });
 });
 
+// GET /api/friends/search?q= — find discoverable users by name (no email exposed)
+friendsRouter.get('/search', async (req, res) => {
+  const q = typeof req.query.q === 'string' ? req.query.q : '';
+  res.json({ results: await searchUsers(req.userId!, q) });
+});
+
 // GET /api/friends/requests/incoming — pending friend requests received
 friendsRouter.get('/requests/incoming', async (req, res) => {
   res.json({ requests: await listPendingIncoming(req.userId!) });
 });
 
-// POST /api/friends/requests { email } — send a friend request
+// POST /api/friends/requests { email | userId } — send a friend request
 friendsRouter.post('/requests', async (req, res) => {
-  const schema = z.object({ email: z.string().trim().email() });
+  const schema = z
+    .object({
+      email: z.string().trim().email().optional(),
+      userId: z.string().uuid().optional(),
+    })
+    .refine((d) => !!d.email || !!d.userId, { message: 'email ou userId é obrigatório' });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { status } = await sendFriendRequest(req.userId!, parsed.data.email);
-  if (status === 'not_found') return res.status(404).json({ error: 'Nenhum utilizador com esse email.' });
+  const { status } = parsed.data.userId
+    ? await sendFriendRequestById(req.userId!, parsed.data.userId)
+    : await sendFriendRequest(req.userId!, parsed.data.email!);
+  if (status === 'not_found') return res.status(404).json({ error: 'Utilizador não encontrado.' });
   if (status === 'self') return res.status(400).json({ error: 'Não te podes adicionar a ti próprio.' });
   if (status === 'blocked') return res.status(409).json({ error: 'Não é possível adicionar este utilizador.' });
   res.json({ status });

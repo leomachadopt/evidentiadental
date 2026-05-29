@@ -148,6 +148,19 @@ export function ProfilePage() {
           <input
             type="checkbox"
             className="mt-0.5"
+            checked={s?.discoverable ?? true}
+            onChange={(e) => savePref.mutate({ discoverable: e.target.checked })}
+          />
+          <span>
+            <strong>Aparecer nas buscas de colegas</strong> (outros podem encontrar-te pelo nome para te
+            adicionarem). O teu email nunca é mostrado.
+          </span>
+        </label>
+
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
             checked={s?.shareLibraryActivity ?? false}
             onChange={(e) => savePref.mutate({ shareLibraryActivity: e.target.checked })}
           />

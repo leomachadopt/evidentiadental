@@ -76,6 +76,16 @@ export interface Settings {
   shareLibraryActivity: boolean;
   acceptPdfRequests: boolean;
   whatsappNumber: string | null;
+  discoverable: boolean;
+}
+
+export interface UserSearchResult {
+  id: string;
+  name: string | null;
+  speciality: string | null;
+  city: string | null;
+  avatar_url: string | null;
+  relationship: 'none' | 'pending_out' | 'pending_in' | 'friends';
 }
 
 export interface Friend {
@@ -259,6 +269,10 @@ export const api = {
   listFriendRequests: () => request<{ requests: PendingFriendRequest[] }>('/api/friends/requests/incoming'),
   addFriend: (email: string) =>
     request<{ status: string }>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ email }) }),
+  addFriendById: (userId: string) =>
+    request<{ status: string }>('/api/friends/requests', { method: 'POST', body: JSON.stringify({ userId }) }),
+  searchUsers: (q: string) =>
+    request<{ results: UserSearchResult[] }>(`/api/friends/search?q=${encodeURIComponent(q)}`),
   respondFriendRequest: (id: string, accept: boolean) =>
     request<{ ok: boolean }>(`/api/friends/requests/${id}/respond`, {
       method: 'POST',
