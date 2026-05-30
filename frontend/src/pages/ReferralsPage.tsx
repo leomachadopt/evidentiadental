@@ -4,12 +4,10 @@ import { api, type CircleStatus } from '../lib/api';
 
 const SHARE_MESSAGE =
   'Olá! 👋\n\n' +
-  'Quantas vezes adiaste uma decisão clínica por não teres a evidência à mão — ' +
-  'ou por não confiares no que a IA simplesmente "inventou"?\n\n' +
-  'No EvidentiaDental faço a pergunta clínica e recebo, em ~90 segundos, evidência real ' +
-  'do PubMed com cada citação verificada (zero alucinações).\n\n' +
-  'Junta-te a mim e aos dentistas que já decidem com base em evidência de verdade — ' +
-  'e começa com o 1º mês com desconto 👇';
+  'Lembrei-me de ti. Ando a usar uma ferramenta que me dá a evidência do PubMed para as ' +
+  'dúvidas do dia a dia, em segundos e com as citações certas — e tem-me poupado imenso tempo.\n\n' +
+  'Pensei que podia fazer sentido para ti. Fica aqui o meu link com desconto, caso queiras ' +
+  'te juntares a mim 👇';
 
 /** Estado de um convidado como passo do funil, com rótulo e cor. */
 function inviteState(f: { status: string | null; counts: boolean }): { label: string; cls: string } {
