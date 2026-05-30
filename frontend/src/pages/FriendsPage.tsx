@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, UserPlus, UserMinus, UserCheck, Check, X, Inbox, Search, ChevronDown } from 'lucide-react';
+import { Users, UserPlus, UserMinus, UserCheck, Check, X, Inbox, Search } from 'lucide-react';
 import { api } from '../lib/api';
 import { Avatar } from '../components/Avatar';
 import { SavedArticleCard } from '../components/SavedArticleCard';
@@ -48,7 +48,7 @@ export function FriendsPage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('all');
-  const [showLists, setShowLists] = useState(false);
+  const [networkModal, setNetworkModal] = useState<'following' | 'followers' | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(term.trim()), 300);
@@ -187,17 +187,24 @@ export function FriendsPage() {
               className="input-field pl-9"
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setShowLists((v) => !v)}
-            className="flex items-center justify-center gap-1.5 self-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 sm:self-auto"
-          >
-            <Users className="h-4 w-4 text-primary-600" />
-            Segues {following.data?.following.length ?? 0} ·{' '}
-            {followers.data?.followers.length ?? 0} seguidor
-            {(followers.data?.followers.length ?? 0) === 1 ? '' : 'es'}
-            <ChevronDown className={`h-4 w-4 transition-transform ${showLists ? 'rotate-180' : ''}`} />
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => setNetworkModal('following')}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+            >
+              <Users className="h-4 w-4 text-primary-600" />
+              Seguindo {following.data?.following.length ?? 0}
+            </button>
+            <button
+              type="button"
+              onClick={() => setNetworkModal('followers')}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+            >
+              <Users className="h-4 w-4 text-primary-600" />
+              Seguidores {followers.data?.followers.length ?? 0}
+            </button>
+          </div>
         </div>
         {error && <p className="text-sm text-rose-600">{error}</p>}
 
@@ -250,72 +257,90 @@ export function FriendsPage() {
         </section>
       )}
 
-      {/* Following + Followers — expandable from the header toggle */}
-      {showLists && (
-      <div className="grid gap-4 md:grid-cols-2">
-        <section className="card space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Users className="h-5 w-5 text-primary-600" /> A seguir
-          </h2>
-          {following.data?.following.length ? (
-            <ul className="divide-y divide-slate-100">
-              {following.data.following.map((u) => (
-                <PersonRow
-                  key={u.id}
-                  u={u}
-                  action={
-                    <>
-                      {u.follows_me && <span className="text-xs text-slate-400">Segue-te</span>}
-                      <button
-                        className="btn-ghost text-rose-600"
-                        onClick={() => unfollow.mutate(u.id)}
-                        title="Deixar de seguir"
-                      >
-                        <UserMinus className="h-4 w-4" />
-                      </button>
-                    </>
-                  }
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500">Ainda não segues ninguém. Procura colegas acima.</p>
-          )}
-        </section>
+      {/* Following / Followers — separate modals opened from the header */}
+      {networkModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={() => setNetworkModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+              <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+                <Users className="h-5 w-5 text-primary-600" />
+                {networkModal === 'following'
+                  ? `Seguindo (${following.data?.following.length ?? 0})`
+                  : `Seguidores (${followers.data?.followers.length ?? 0})`}
+              </h2>
+              <button
+                className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                onClick={() => setNetworkModal(null)}
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
-        <section className="card space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-            <Users className="h-5 w-5 text-primary-600" /> Seguidores
-          </h2>
-          {followers.data?.followers.length ? (
-            <ul className="divide-y divide-slate-100">
-              {followers.data.followers.map((u) => (
-                <PersonRow
-                  key={u.id}
-                  u={u}
-                  action={
-                    u.i_follow ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-slate-400">
-                        <UserCheck className="h-3.5 w-3.5" /> A seguir
-                      </span>
-                    ) : (
-                      <button
-                        className="btn-primary text-xs"
-                        onClick={() => follow.mutate(u.id)}
-                        disabled={follow.isPending}
-                      >
-                        <UserPlus className="h-3.5 w-3.5" /> Seguir de volta
-                      </button>
-                    )
-                  }
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500">Ainda não tens seguidores.</p>
-          )}
-        </section>
-      </div>
+            <div className="max-h-[60vh] overflow-y-auto px-5 py-2">
+              {networkModal === 'following' ? (
+                following.data?.following.length ? (
+                  <ul className="divide-y divide-slate-100">
+                    {following.data.following.map((u) => (
+                      <PersonRow
+                        key={u.id}
+                        u={u}
+                        action={
+                          <>
+                            {u.follows_me && <span className="text-xs text-slate-400">Segue-te</span>}
+                            <button
+                              className="btn-ghost text-rose-600"
+                              onClick={() => unfollow.mutate(u.id)}
+                              title="Deixar de seguir"
+                            >
+                              <UserMinus className="h-4 w-4" />
+                            </button>
+                          </>
+                        }
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-4 text-sm text-slate-500">
+                    Ainda não segues ninguém. Procura colegas acima.
+                  </p>
+                )
+              ) : followers.data?.followers.length ? (
+                <ul className="divide-y divide-slate-100">
+                  {followers.data.followers.map((u) => (
+                    <PersonRow
+                      key={u.id}
+                      u={u}
+                      action={
+                        u.i_follow ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                            <UserCheck className="h-3.5 w-3.5" /> A seguir
+                          </span>
+                        ) : (
+                          <button
+                            className="btn-primary text-xs"
+                            onClick={() => follow.mutate(u.id)}
+                            disabled={follow.isPending}
+                          >
+                            <UserPlus className="h-3.5 w-3.5" /> Seguir de volta
+                          </button>
+                        )
+                      }
+                    />
+                  ))}
+                </ul>
+              ) : (
+                <p className="py-4 text-sm text-slate-500">Ainda não tens seguidores.</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Activity feed */}
