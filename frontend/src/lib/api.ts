@@ -332,6 +332,14 @@ export const api = {
       estCostUsd: number;
     }>('/api/admin/stats'),
   adminUsers: () => request<{ users: any[] }>('/api/admin/users'),
+  adminCreateUser: (body: {
+    email: string;
+    password: string;
+    name?: string;
+    speciality?: string;
+    access?: 'active' | 'trialing' | 'none';
+    isAdmin?: boolean;
+  }) => request<{ id: string; email: string }>('/api/admin/users', { method: 'POST', body: JSON.stringify(body) }),
   adminUpdateUser: (
     id: string,
     patch: { access?: 'active' | 'trialing' | 'canceled' | 'none'; isAdmin?: boolean },

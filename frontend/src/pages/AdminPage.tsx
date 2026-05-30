@@ -1,9 +1,44 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ShieldAlert, Loader2, Check, Trash2 } from 'lucide-react';
+import { ShieldAlert, Loader2, Check, Trash2, UserPlus } from 'lucide-react';
 import { api } from '../lib/api';
 
 export function AdminPage() {
   const queryClient = useQueryClient();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState({
+    email: '',
+    password: '',
+    name: '',
+    speciality: '',
+    access: 'active' as 'active' | 'trialing' | 'none',
+    isAdmin: false,
+  });
+  const [createErr, setCreateErr] = useState<string | null>(null);
+
+  const createUser = useMutation({
+    mutationFn: () =>
+      api.adminCreateUser({
+        email: form.email.trim(),
+        password: form.password,
+        name: form.name.trim() || undefined,
+        speciality: form.speciality.trim() || undefined,
+        access: form.access,
+        isAdmin: form.isAdmin,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+      setShowCreate(false);
+      setForm({ email: '', password: '', name: '', speciality: '', access: 'active', isAdmin: false });
+      setCreateErr(null);
+    },
+    onError: (e: any) => {
+      const msg = e?.message;
+      setCreateErr(typeof msg === 'string' ? msg : 'Não foi possível criar o utilizador.');
+    },
+  });
 
   const statsQ = useQuery({ queryKey: ['admin-stats'], queryFn: () => api.adminStats(), retry: false });
   const usersQ = useQuery({ queryKey: ['admin-users'], queryFn: () => api.adminUsers(), retry: false });
@@ -68,6 +103,101 @@ export function AdminPage() {
         <Stat label="Subscritos" value={stats?.subscribed ?? 0} loading={statsQ.isLoading} />
         <Stat label="Buscas (total)" value={stats?.totalSearches} loading={statsQ.isLoading} />
         <Stat label="Custo IA estimado" value={stats ? `$${stats.estCostUsd.toFixed(2)}` : undefined} loading={statsQ.isLoading} />
+      </div>
+
+      {/* Create user */}
+      <div className="card mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-slate-900">Criar utilizador</h2>
+          <button
+            onClick={() => { setShowCreate((v) => !v); setCreateErr(null); }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-primary-700"
+          >
+            <UserPlus className="h-3.5 w-3.5" /> {showCreate ? 'Fechar' : 'Novo utilizador'}
+          </button>
+        </div>
+
+        {showCreate && (
+          <form
+            onSubmit={(e) => { e.preventDefault(); createUser.mutate(); }}
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+          >
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Email *
+              <input
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="input-field"
+                placeholder="colega@clinica.pt"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Password *
+              <input
+                type="text"
+                required
+                minLength={8}
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="input-field"
+                placeholder="Mínimo 8 caracteres"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Nome
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="input-field"
+                placeholder="Dra. Joana Ribeiro"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Especialidade
+              <input
+                value={form.speciality}
+                onChange={(e) => setForm({ ...form, speciality: e.target.value })}
+                className="input-field"
+                placeholder="Periodontia, Implantologia…"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+              Acesso
+              <select
+                value={form.access}
+                onChange={(e) => setForm({ ...form, access: e.target.value as any })}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="active">Ativo (cortesia)</option>
+                <option value="trialing">Trial</option>
+                <option value="none">Sem acesso</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.isAdmin}
+                onChange={(e) => setForm({ ...form, isAdmin: e.target.checked })}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              Tornar administrador
+            </label>
+
+            {createErr && <p className="text-sm text-red-600 sm:col-span-2">{createErr}</p>}
+
+            <div className="sm:col-span-2">
+              <button type="submit" disabled={createUser.isPending} className="btn-primary">
+                {createUser.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                Criar utilizador
+              </button>
+              <span className="ml-3 text-xs text-slate-400">
+                Cortesia: acesso imediato, sem Stripe. Partilha as credenciais com o utilizador.
+              </span>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Users */}

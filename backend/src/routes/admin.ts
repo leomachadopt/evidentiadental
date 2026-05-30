@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { query } from '../db/client.js';
 import { stripe } from '../lib/stripe.js';
 import { authRequired } from '../middleware/auth.js';
 import { adminRequired } from '../middleware/admin.js';
+import { ensureReferralCode } from '../services/referral-service.js';
 
 export const adminRouter = Router();
 adminRouter.use(authRequired);
@@ -60,6 +62,48 @@ adminRouter.get('/users', async (_req, res) => {
      LIMIT 200`,
   );
   res.json({ users: result.rows });
+});
+
+// POST /api/admin/users — manually create a user (comp/courtesy account).
+// Defaults to active access with NO Stripe subscription, so it grants full
+// access without any charge. The admin sets the password and shares it.
+adminRouter.post('/users', async (req, res) => {
+  const schema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+    name: z.string().min(1).optional(),
+    speciality: z.string().optional(),
+    access: z.enum(['active', 'trialing', 'none']).default('active'),
+    isAdmin: z.boolean().default(false),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+  const { email, password, name, speciality, access, isAdmin } = parsed.data;
+
+  const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
+  if (existing.rows.length > 0) return res.status(409).json({ error: 'Email já registado' });
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  // Courtesy account: access driven by subscription_status (no Stripe involved).
+  const status = access === 'none' ? null : access;
+
+  const result = await query<{ id: string; email: string; name: string | null; is_admin: boolean }>(
+    `INSERT INTO users (email, password_hash, name, speciality, is_admin, subscription_tier, subscription_status)
+     VALUES ($1, $2, $3, $4, $5, 'paid', $6)
+     RETURNING id, email, name, is_admin`,
+    [email, passwordHash, name ?? null, speciality ?? null, isAdmin, status],
+  );
+  const user = result.rows[0];
+
+  // Give the new user their own referral code, like a normal signup. Best-effort.
+  try {
+    await ensureReferralCode(user.id);
+  } catch (e: any) {
+    console.error('[admin] ensureReferralCode failed for new user:', e?.message ?? e);
+  }
+
+  res.status(201).json(user);
 });
 
 // PATCH /api/admin/users/:id — manage a user's access and admin role.
