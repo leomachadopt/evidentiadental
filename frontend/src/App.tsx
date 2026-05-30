@@ -14,6 +14,7 @@ import { FriendProfilePage } from './pages/FriendProfilePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { BillingPage } from './pages/BillingPage';
 import { AdminPage } from './pages/AdminPage';
+import { ReferralsPage } from './pages/ReferralsPage';
 import { MeshBackground } from './components/MeshBackground';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './lib/api';
@@ -38,6 +39,7 @@ const NAV = [
   { to: '/', label: 'Nova busca' },
   { to: '/history', label: 'Histórico' },
   { to: '/library', label: 'Biblioteca' },
+  { to: '/referrals', label: 'Convidar' },
   { to: '/friends', label: 'Colegas' },
   { to: '/profile', label: 'Perfil' },
   { to: '/billing', label: 'Conta' },
@@ -144,6 +146,7 @@ export default function App() {
           />
           <Route path="/history" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><HistoryPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/library" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><LibraryPage /></RequireAccess></ProtectedRoute>} />
+          <Route path="/referrals" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><ReferralsPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/friends" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><FriendsPage /></RequireAccess></ProtectedRoute>} />
           <Route path="/friends/:id" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><FriendProfilePage /></RequireAccess></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><RequireAccess hasAccess={me?.hasAccess}><ProfilePage /></RequireAccess></ProtectedRoute>} />

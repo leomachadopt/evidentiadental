@@ -14,7 +14,10 @@ export function LoginPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'login' | 'register'>(
-    new URLSearchParams(window.location.search).get('mode') === 'register' ? 'register' : 'login',
+    new URLSearchParams(window.location.search).get('mode') === 'register' ||
+      !!localStorage.getItem('referralCode')
+      ? 'register'
+      : 'login',
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +34,14 @@ export function LoginPage() {
       const result =
         mode === 'login'
           ? await api.login({ email, password })
-          : await api.register({ email, password, name, speciality });
+          : await api.register({
+              email,
+              password,
+              name,
+              speciality,
+              referralCode: localStorage.getItem('referralCode') || undefined,
+            });
+      if (mode === 'register') localStorage.removeItem('referralCode'); // consumido
       setToken(result.token);
       queryClient.invalidateQueries({ queryKey: ['me'] });
       if (result.user?.isAdmin) {
@@ -102,6 +112,12 @@ export function LoginPage() {
         <p className="mt-1 text-sm text-slate-500">
           {mode === 'login' ? 'Bem-vindo de volta.' : 'Começa com 7 dias grátis.'}
         </p>
+
+        {mode === 'register' && localStorage.getItem('referralCode') && (
+          <div className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-800 ring-1 ring-emerald-100">
+            🎉 Foste convidado por um colega. Cria a conta para começares o teu trial.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-7 space-y-4">
           {mode === 'register' && (

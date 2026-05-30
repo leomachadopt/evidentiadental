@@ -131,7 +131,7 @@ export interface IncomingPdfRequest {
 
 export const api = {
   // Auth
-  register: (body: { email: string; password: string; name?: string; speciality?: string }) =>
+  register: (body: { email: string; password: string; name?: string; speciality?: string; referralCode?: string }) =>
     request<{ token: string; user: any }>('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body: { email: string; password: string }) =>
     request<{ token: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
@@ -338,4 +338,25 @@ export const api = {
   ) => request<any>(`/api/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   adminDeleteUser: (id: string) =>
     request<{ ok: boolean; email: string }>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Referrals
+  myCircle: () => request<CircleStatus>('/api/referrals/me'),
+};
+
+export type CircleFriend = {
+  name: string | null;
+  status: string | null;
+  counts: boolean;
+};
+
+export type CircleStatus = {
+  code: string;
+  link: string;
+  activePaying: number;
+  threshold: number;
+  discountPct: number;
+  isFree: boolean;
+  searchesPerMonth: number;
+  bonusSearches: number;
+  friends: CircleFriend[];
 };

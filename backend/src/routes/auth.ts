@@ -6,6 +6,7 @@ import { query } from '../db/client.js';
 import { config } from '../lib/config.js';
 import { signToken, authRequired } from '../middleware/auth.js';
 import { emitFunnelEvent } from '../lib/marketing.js';
+import { ensureReferralCode, recordReferral } from '../services/referral-service.js';
 
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -21,13 +22,14 @@ const RegisterSchema = z.object({
   name: z.string().min(1).optional(),
   speciality: z.string().optional(),
   country: z.string().length(2).default('PT'),
+  referralCode: z.string().optional(), // código do indicador, vindo do ?ref= no link
 });
 
 authRouter.post('/register', async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const { email, password, name, speciality, country } = parsed.data;
+  const { email, password, name, speciality, country, referralCode } = parsed.data;
   const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
   if (existing.rows.length > 0) return res.status(409).json({ error: 'Email já registado' });
 
@@ -46,6 +48,18 @@ authRouter.post('/register', async (req, res) => {
   // Top of the marketing funnel: hand the lead to n8n -> MailerLite. Awaited but
   // never throws, so a marketing outage can't fail a signup.
   await emitFunnelEvent('signup', { email, name, userId: user.id });
+
+  // Programa de indicações: gera o código próprio do novo utilizador e regista
+  // a indicação se veio por link. Nunca pode partir o registo.
+  try {
+    await ensureReferralCode(user.id);
+    if (referralCode) {
+      await recordReferral(user.id, referralCode);
+      await emitFunnelEvent('referral_signup', { email, name, userId: user.id });
+    }
+  } catch (e: any) {
+    console.error('[auth] referral capture failed:', e?.message ?? e);
+  }
 
   res.json({
     token,

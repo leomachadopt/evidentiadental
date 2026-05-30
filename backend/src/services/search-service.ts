@@ -14,6 +14,7 @@
  */
 
 import { query, withTransaction } from '../db/client.js';
+import { config } from '../lib/config.js';
 import { callClaudeJson } from '../lib/claude.js';
 import { esearch, efetch, type PubMedArticle } from '../lib/pubmed.js';
 import { searchEuropePmc } from '../lib/europepmc.js';
@@ -75,6 +76,8 @@ export async function createSearch(
     system: PICO_SYSTEM_PROMPT,
     user: buildPicoUserPrompt(rawQuestion),
     maxTokens: 1500,
+    // Extração estruturada — tarefa barata, corre no modelo rápido (Haiku).
+    model: config.CLAUDE_MODEL_FAST,
   });
 
   const parsed = PicoResponseSchema.safeParse(picoResult.data);
@@ -419,6 +422,8 @@ async function scoreRelevance(
       system: RELEVANCE_SYSTEM_PROMPT,
       user: buildRelevanceUserPrompt(rawQuestion, picoSummary, batch),
       maxTokens: 1500,
+      // Ranking/classificação — ~85% do custo de LLM por busca. Modelo rápido.
+      model: config.CLAUDE_MODEL_FAST,
     });
     apiCalls.claude = (apiCalls.claude ?? 0) + 1;
 

@@ -20,9 +20,12 @@ export async function callClaudeJson<T>(opts: {
   system: string;
   user: string;
   maxTokens?: number;
+  /** Override do modelo. Default = CLAUDE_MODEL (Sonnet). Tarefas baratas de
+   *  classificação (PICO, relevance) passam CLAUDE_MODEL_FAST (Haiku). */
+  model?: string;
 }): Promise<ClaudeCallResult<T>> {
   const response = await claude.messages.create({
-    model: config.CLAUDE_MODEL,
+    model: opts.model ?? config.CLAUDE_MODEL,
     max_tokens: opts.maxTokens ?? 2048,
     system: opts.system,
     messages: [{ role: 'user', content: opts.user }],
@@ -59,9 +62,11 @@ export async function callClaudeText(opts: {
   system: string;
   user: string;
   maxTokens?: number;
+  /** Override do modelo. Default = CLAUDE_MODEL (Sonnet). */
+  model?: string;
 }): Promise<ClaudeCallResult<string>> {
   const response = await claude.messages.create({
-    model: config.CLAUDE_MODEL,
+    model: opts.model ?? config.CLAUDE_MODEL,
     max_tokens: opts.maxTokens ?? 4096,
     system: opts.system,
     messages: [{ role: 'user', content: opts.user }],

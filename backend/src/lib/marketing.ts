@@ -28,6 +28,10 @@ export type FunnelEvent =
   | 'subscription_active' // trial converted to paid (or reactivated)
   | 'payment_failed' // invoice payment failed (dunning)
   | 'subscription_canceled' // subscription fully ended (win-back)
+  | 'referral_signup' // someone registered via a referral link
+  | 'referral_first_payment' // a referred friend paid for the first time
+  | 'circle_completed' // referrer reached 5 paying friends — subscription is now free
+  | 'circle_broken' // referrer dropped below 5 — discount/free benefit reduced
   | 'password_reset'; // transactional: send the password-reset link to the user
 
 export interface FunnelPayload {
@@ -40,6 +44,10 @@ export interface FunnelPayload {
   currentPeriodEnd?: string | null; // ISO
   stripeCustomerId?: string | null;
   resetUrl?: string | null; // password_reset: the tokenized link to set a new password
+  // Referrals: current circle state for the email copy ("estás em 4/5", etc.)
+  circleSize?: number | null;
+  discountPct?: number | null;
+  isFree?: boolean | null;
 }
 
 const TIMEOUT_MS = 4000;

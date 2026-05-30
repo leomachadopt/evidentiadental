@@ -10,8 +10,8 @@
 
 import type { RequestHandler } from 'express';
 import { query } from '../db/client.js';
+import { searchLimitFor } from '../services/referral-service.js';
 
-const SEARCH_LIMIT = 30; // searches/month for subscribers (trialing or active)
 const ACTIVE_STATUSES = new Set(['trialing', 'active']);
 
 export interface UsageStatus {
@@ -30,8 +30,14 @@ export async function getUsageStatus(userId: string): Promise<UsageStatus> {
     is_admin: boolean;
     subscription_status: string | null;
     current_period_end: string | null;
-  }>('SELECT is_admin, subscription_status, current_period_end FROM users WHERE id = $1', [userId]);
-  const u = userRes.rows[0] ?? { is_admin: false, subscription_status: null, current_period_end: null };
+    circle_size: number;
+  }>(
+    'SELECT is_admin, subscription_status, current_period_end, circle_size FROM users WHERE id = $1',
+    [userId],
+  );
+  const u =
+    userRes.rows[0] ??
+    { is_admin: false, subscription_status: null, current_period_end: null, circle_size: 0 };
 
   const [searchesRes, synthRes] = await Promise.all([
     query<{ count: string }>(
@@ -49,7 +55,8 @@ export async function getUsageStatus(userId: string): Promise<UsageStatus> {
 
   const subscribed = !!u.subscription_status && ACTIVE_STATUSES.has(u.subscription_status);
   const hasAccess = u.is_admin || subscribed;
-  const monthlyLimit = u.is_admin ? Infinity : subscribed ? SEARCH_LIMIT : 0;
+  // Limite dinâmico: base 30 + 20% por cada amigo indicado pagante acima do 5º.
+  const monthlyLimit = u.is_admin ? Infinity : subscribed ? searchLimitFor(u.circle_size) : 0;
 
   return {
     isAdmin: u.is_admin,

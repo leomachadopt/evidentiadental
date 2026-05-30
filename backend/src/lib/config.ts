@@ -14,6 +14,12 @@ const schema = z.object({
   NCBI_EMAIL: z.string().email(),
   ANTHROPIC_API_KEY: z.string().startsWith('sk-ant-'),
   CLAUDE_MODEL: z.string().default('claude-sonnet-4-6'),
+  // Modelo "rápido" para tarefas de classificação/extração (PICO, relevance
+  // scoring) — não precisam do raciocínio do Sonnet e o relevance scoring é
+  // ~85% do custo de LLM por busca. Haiku 4.5 custa 1/3 do Sonnet ($1/$5 vs
+  // $3/$15). A síntese clínica continua sempre no CLAUDE_MODEL (Sonnet),
+  // protegida pelo citation-validator. Mete = CLAUDE_MODEL para reverter.
+  CLAUDE_MODEL_FAST: z.string().default('claude-haiku-4-5-20251001'),
   CROSSREF_EMAIL: z.string().email(),
   UNPAYWALL_EMAIL: z.string().email(),
   CORE_API_KEY: z.string().optional(),
