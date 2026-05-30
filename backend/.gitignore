@@ -1,0 +1,4 @@
+
+# Todos os ficheiros de ambiente (inclui backups tipo .env.testbak)
+.env*
+!.env.example
