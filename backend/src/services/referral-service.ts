@@ -343,7 +343,8 @@ export async function getMyCircle(userId: string): Promise<CircleStatus> {
 
   return {
     code,
-    link: `${config.FRONTEND_URL}/?ref=${code}`,
+    // remove trailing slash do FRONTEND_URL para não gerar "//?ref="
+    link: `${config.FRONTEND_URL.replace(/\/+$/, '')}/?ref=${code}`,
     activePaying: n,
     threshold: CIRCLE_THRESHOLD,
     discountPct: circleDiscountPct(n),

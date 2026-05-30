@@ -3,7 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type CircleStatus } from '../lib/api';
 
 const SHARE_MESSAGE =
-  'Uso o EvidentiaDental para ter evidência do PubMed verificada em segundos. Experimenta pelo meu link:';
+  'Colega, andas a perder tempo a caçar estudos para fundamentar decisões?\n\n' +
+  'Eu faço a pergunta clínica e recebo evidência do PubMed — com citações verificadas, ' +
+  'sem invenções — em ~90 segundos.\n\n' +
+  'Entra pelo meu link e tens o 1º mês com desconto 👇';
 
 function statusLabel(status: string | null): string {
   switch (status) {
@@ -48,7 +51,7 @@ export function ReferralsPage() {
   const remaining = Math.max(0, threshold - activePaying);
   const progress = Math.min(100, (activePaying / threshold) * 100);
 
-  const waLink = `https://wa.me/?text=${encodeURIComponent(`${SHARE_MESSAGE} ${link}`)}`;
+  const waLink = `https://wa.me/?text=${encodeURIComponent(`${SHARE_MESSAGE}\n${link}`)}`;
   const mailLink = `mailto:?subject=${encodeURIComponent(
     'Convite para o EvidentiaDental',
   )}&body=${encodeURIComponent(`${SHARE_MESSAGE}\n\n${link}`)}`;
