@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, UserPlus, UserMinus, UserCheck, Check, X, Inbox, Search } from 'lucide-react';
+import { Users, UserPlus, UserMinus, UserCheck, Check, X, Inbox, Search, ChevronDown } from 'lucide-react';
 import { api } from '../lib/api';
 import { Avatar } from '../components/Avatar';
 import { SavedArticleCard } from '../components/SavedArticleCard';
@@ -48,6 +48,7 @@ export function FriendsPage() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [period, setPeriod] = useState<PeriodKey>('all');
+  const [showLists, setShowLists] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(term.trim()), 300);
