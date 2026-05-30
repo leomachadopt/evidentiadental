@@ -252,6 +252,61 @@ export async function applyFriendWelcomeCredit(userId: string, customerId: strin
 }
 
 // ============================================================
+// Reconciliação (rede de segurança: webhooks perdidos / trial->conversão)
+// ============================================================
+
+/**
+ * Ressincroniza o circle_size e o desconto Stripe de UM indicador com a
+ * realidade. Ao contrário de `recomputeCircle`, reaplica SEMPRE o desconto
+ * (mesmo que o circle_size não mude) — é isto que corrige o caso de quem junta
+ * o círculo enquanto está em trial e só converte depois (nessa altura o
+ * applyCircleDiscount no checkout/trial era no-op por não haver subscrição).
+ */
+export async function reconcileCircle(referrerId: string): Promise<boolean> {
+  const u = await query<{ circle_size: number; stripe_subscription_id: string | null }>(
+    'SELECT circle_size, stripe_subscription_id FROM users WHERE id = $1',
+    [referrerId],
+  );
+  if (u.rows.length === 0) return false;
+
+  const cnt = await query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n
+       FROM referrals rf JOIN users f ON f.id = rf.referred_id
+      WHERE rf.referrer_id = $1 AND rf.status = 'active'
+        AND f.subscription_status = 'active' AND f.circle_size < $2`,
+    [referrerId, CIRCLE_THRESHOLD],
+  );
+  const newSize = cnt.rows[0].n;
+
+  let changed = false;
+  if (newSize !== u.rows[0].circle_size) {
+    await query('UPDATE users SET circle_size = $1 WHERE id = $2', [newSize, referrerId]);
+    changed = true;
+  }
+  try {
+    await applyCircleDiscount(u.rows[0].stripe_subscription_id, circleDiscountPct(newSize));
+  } catch (e: any) {
+    console.error(`[referrals] reconcile applyCircleDiscount falhou para ${referrerId}:`, e?.message ?? e);
+  }
+  return changed;
+}
+
+/** Reconcilia todos os indicadores (e quem tenha circle_size>0, para limpar
+ *  descontos perdidos). Pensado para um cron periódico. */
+export async function reconcileAllCircles(): Promise<{ checked: number; changed: number }> {
+  const rows = await query<{ id: string }>(
+    `SELECT DISTINCT referrer_id AS id FROM referrals WHERE status = 'active'
+     UNION
+     SELECT id FROM users WHERE circle_size > 0`,
+  );
+  let changed = 0;
+  for (const r of rows.rows) {
+    if (await reconcileCircle(r.id)) changed++;
+  }
+  return { checked: rows.rows.length, changed };
+}
+
+// ============================================================
 // Leitura (API)
 // ============================================================
 

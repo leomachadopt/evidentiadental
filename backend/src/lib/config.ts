@@ -34,6 +34,9 @@ const schema = z.object({
   // Object storage for user-uploaded PDFs (Vercel Blob). Auto-injected by Vercel
   // when a Blob store is linked. Upload endpoints are no-op/503 when unset.
   BLOB_READ_WRITE_TOKEN: z.string().optional(),
+  // Segredo partilhado para o endpoint de cron (reconciliação de indicações).
+  // Vercel Cron / n8n chamam com este segredo. No-op (503) se não configurado.
+  CRON_SECRET: z.string().optional(),
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),

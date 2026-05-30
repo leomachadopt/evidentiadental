@@ -11,6 +11,8 @@ import { papersRouter } from './routes/papers.js';
 import { settingsRouter } from './routes/settings.js';
 import { friendsRouter } from './routes/friends.js';
 import { adminRouter } from './routes/admin.js';
+import { referralsRouter } from './routes/referrals.js';
+import { cronRouter } from './routes/cron.js';
 
 const app = express();
 
@@ -47,6 +49,8 @@ app.use('/api/papers', papersRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/friends', friendsRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/referrals', referralsRouter);
+app.use('/api/cron', cronRouter);
 
 // Error handler
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
