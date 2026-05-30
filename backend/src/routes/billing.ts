@@ -7,7 +7,12 @@ import { stripe, tierForPrice } from '../lib/stripe.js';
 import { authRequired } from '../middleware/auth.js';
 import { getUsageStatus } from '../middleware/tier-limits.js';
 import { emitFunnelEvent, type FunnelEvent, type FunnelPayload } from '../lib/marketing.js';
-import { applyFriendWelcomeCredit } from '../services/referral-service.js';
+import {
+  applyFriendWelcomeCredit,
+  markReferralPaid,
+  onReferredSubscriptionChanged,
+  reverseReferral,
+} from '../services/referral-service.js';
 
 export const billingRouter = Router();
 billingRouter.use(authRequired);
@@ -143,6 +148,18 @@ async function emitForCustomer(
   });
 }
 
+/** Recalcula o círculo de indicações afetado por uma mudança de subscrição do
+ *  amigo (cancelou, past_due, reativou). Best-effort: nunca parte o webhook. */
+async function recomputeReferralForCustomer(customerId: string | null) {
+  if (!customerId) return;
+  try {
+    const u = await userByCustomer(customerId);
+    if (u) await onReferredSubscriptionChanged(u.id);
+  } catch (e: any) {
+    console.error('[billing] referral recompute failed:', e?.message ?? e);
+  }
+}
+
 const subCustomerId = (sub: Stripe.Subscription) =>
   typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
 
@@ -229,6 +246,7 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         await emitForCustomer(subCustomerId(sub), 'subscription_canceled', {
           subscriptionStatus: 'canceled',
         });
+        await recomputeReferralForCustomer(subCustomerId(sub)); // amigo cancelou → recalcular
         break;
       }
 
@@ -247,6 +265,40 @@ export async function handleStripeWebhook(req: Request, res: Response) {
         const customerId =
           typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer?.id ?? null);
         if (customerId) await emitForCustomer(customerId, 'payment_failed', { subscriptionStatus: 'past_due' });
+        if (customerId) await recomputeReferralForCustomer(customerId); // past_due deixa de contar
+        break;
+      }
+
+      case 'invoice.payment_succeeded': {
+        // Gatilho de qualificação de indicações: o amigo pagou de verdade.
+        // amount_paid > 0 exclui a fatura €0 do início do trial.
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer?.id ?? null);
+        if (customerId && (invoice.amount_paid ?? 0) > 0) {
+          try {
+            const u = await userByCustomer(customerId);
+            if (u) await markReferralPaid(u.id);
+          } catch (e: any) {
+            console.error('[billing] markReferralPaid failed:', e?.message ?? e);
+          }
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        // Reembolso → clawback: a indicação deixa de contar para o círculo.
+        const charge = event.data.object as Stripe.Charge;
+        const customerId =
+          typeof charge.customer === 'string' ? charge.customer : (charge.customer?.id ?? null);
+        if (customerId) {
+          try {
+            const u = await userByCustomer(customerId);
+            if (u) await reverseReferral(u.id);
+          } catch (e: any) {
+            console.error('[billing] reverseReferral failed:', e?.message ?? e);
+          }
+        }
         break;
       }
 

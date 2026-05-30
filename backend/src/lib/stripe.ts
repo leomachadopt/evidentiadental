@@ -57,8 +57,14 @@ export async function applyCircleDiscount(
   if (!stripe || !subscriptionId) return;
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   if (clamped <= 0) {
-    // Remove qualquer desconto ativo. `discounts: []` limpa o cupão.
-    await stripe.subscriptions.update(subscriptionId, { discounts: [] } as any);
+    // Remove qualquer desconto ativo. deleteDiscount é o método canónico e
+    // fiável entre versões da API (setar discounts:[] nem sempre limpa). Lança
+    // se não houver desconto — engolimos esse caso.
+    try {
+      await stripe.subscriptions.deleteDiscount(subscriptionId);
+    } catch (e: any) {
+      if (!/no discount|No such discount|does not have a discount/i.test(e?.message ?? '')) throw e;
+    }
     return;
   }
   const coupon = await ensureCircleCoupon(clamped);
