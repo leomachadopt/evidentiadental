@@ -6,6 +6,7 @@
   html {
     font-family: 'Geist', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
   }
   body {
     @apply bg-[#eef3f7] text-slate-900 antialiased;
