@@ -59,9 +59,9 @@ export function LandingPage() {
               com o paciente, na formação ou no artigo.
             </p>
             <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link to={REGISTER} className="btn-primary px-5 py-3 text-base">
+              <a href="#precos" className="btn-primary px-5 py-3 text-base">
                 <Sparkles className="h-4 w-4" /> Começar trial
-              </Link>
+              </a>
               <a href="#como-funciona" className="btn-secondary px-5 py-3 text-base">
                 Ver como funciona
               </a>
@@ -303,9 +303,9 @@ export function LandingPage() {
             Cancela quando quiseres, sem compromisso. Vê uma síntese citada com os teus próprios olhos
             em menos de dois minutos.
           </p>
-          <Link to={REGISTER} className="btn-primary mt-6 px-6 py-3 text-base">
+          <a href="#precos" className="btn-primary mt-6 px-6 py-3 text-base">
             <Sparkles className="h-4 w-4" /> Começar trial
-          </Link>
+          </a>
         </div>
       </section>
     </div>

@@ -106,7 +106,7 @@ export default function App() {
           {!authed && location.pathname !== '/login' && (
             <div className="flex items-center gap-2">
               <Link to="/login" className="btn-ghost hidden sm:inline-flex">Entrar</Link>
-              <Link to="/login?mode=register" className="btn-primary">Começar trial</Link>
+              <a href="/#precos" className="btn-primary">Começar trial</a>
             </div>
           )}
         </div>
