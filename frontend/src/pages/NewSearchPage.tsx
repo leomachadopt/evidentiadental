@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Loader2, ArrowRight } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 
 const EXAMPLES = [
@@ -99,19 +99,20 @@ export function NewSearchPage() {
         {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
 
         <div className="mt-7">
-          <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">Experimenta</div>
-          <div className="flex flex-col gap-2">
-            {EXAMPLES.map((ex) => (
-              <button
-                key={ex}
-                onClick={() => setQuestion(ex)}
-                className="group flex items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/65 px-4 py-3 text-left text-sm text-slate-700 backdrop-blur-sm transition hover:-translate-y-0.5 hover:border-primary-300 hover:bg-white/85 hover:shadow-card"
-              >
-                <span>{ex}</span>
-                <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-primary-500" />
-              </button>
-            ))}
+          <div className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+            Exemplos de perguntas
           </div>
+          <ul className="flex flex-col gap-2">
+            {EXAMPLES.map((ex) => (
+              <li
+                key={ex}
+                className="flex items-start gap-2.5 rounded-xl border border-white/60 bg-white/65 px-4 py-3 text-sm text-slate-600 backdrop-blur-sm"
+              >
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
+                <span>{ex}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
