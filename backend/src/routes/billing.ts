@@ -7,6 +7,7 @@ import { stripe, tierForPrice } from '../lib/stripe.js';
 import { authRequired } from '../middleware/auth.js';
 import { getUsageStatus } from '../middleware/tier-limits.js';
 import { emitFunnelEvent, type FunnelEvent, type FunnelPayload } from '../lib/marketing.js';
+import { applyFriendWelcomeCredit } from '../services/referral-service.js';
 
 export const billingRouter = Router();
 billingRouter.use(authRequired);
@@ -59,6 +60,10 @@ billingRouter.post('/checkout', async (req, res) => {
     customerId = customer.id;
     await query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [customerId, req.userId]);
   }
+
+  // Amigo indicado: crédito único de boas-vindas (€5) na 1ª fatura, via Customer
+  // Balance — o preço listado continua €9,90 e o desconto entra como crédito.
+  await applyFriendWelcomeCredit(req.userId!, customerId);
 
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
