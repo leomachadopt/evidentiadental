@@ -174,19 +174,29 @@ export function FriendsPage() {
         </p>
       </div>
 
-      {/* Find colleagues */}
+      {/* Compact header: find + counts toggle */}
       <section className="card space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <UserPlus className="h-5 w-5 text-primary-600" /> Encontrar colegas
-        </h2>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Procurar por nome, especialidade ou cidade…"
-            className="input-field pl-9"
-          />
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="Procurar colega por nome, especialidade ou cidade…"
+              className="input-field pl-9"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowLists((v) => !v)}
+            className="flex items-center justify-center gap-1.5 self-start whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 sm:self-auto"
+          >
+            <Users className="h-4 w-4 text-primary-600" />
+            Segues {following.data?.following.length ?? 0} ·{' '}
+            {followers.data?.followers.length ?? 0} seguidor
+            {(followers.data?.followers.length ?? 0) === 1 ? '' : 'es'}
+            <ChevronDown className={`h-4 w-4 transition-transform ${showLists ? 'rotate-180' : ''}`} />
+          </button>
         </div>
         {error && <p className="text-sm text-rose-600">{error}</p>}
 
@@ -239,7 +249,8 @@ export function FriendsPage() {
         </section>
       )}
 
-      {/* Following + Followers */}
+      {/* Following + Followers — expandable from the header toggle */}
+      {showLists && (
       <div className="grid gap-4 md:grid-cols-2">
         <section className="card space-y-3">
           <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
@@ -304,6 +315,7 @@ export function FriendsPage() {
           )}
         </section>
       </div>
+      )}
 
       {/* Activity feed */}
       <section className="space-y-3">
