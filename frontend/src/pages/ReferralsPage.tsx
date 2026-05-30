@@ -3,23 +3,28 @@ import { useQuery } from '@tanstack/react-query';
 import { api, type CircleStatus } from '../lib/api';
 
 const SHARE_MESSAGE =
-  'Colega, andas a perder tempo a caçar estudos para fundamentar decisões?\n\n' +
-  'Eu faço a pergunta clínica e recebo evidência do PubMed — com citações verificadas, ' +
-  'sem invenções — em ~90 segundos.\n\n' +
-  'Entra pelo meu link e tens o 1º mês com desconto 👇';
+  'Olá! 👋\n\n' +
+  'Quantas vezes adiaste uma decisão clínica por não teres a evidência à mão — ' +
+  'ou por não confiares no que a IA simplesmente "inventou"?\n\n' +
+  'No EvidentiaDental faço a pergunta clínica e recebo, em ~90 segundos, evidência real ' +
+  'do PubMed com cada citação verificada (zero alucinações).\n\n' +
+  'Junta-te a mim e aos dentistas que já decidem com base em evidência de verdade — ' +
+  'e começa com o 1º mês com desconto 👇';
 
-function statusLabel(status: string | null): string {
-  switch (status) {
+/** Estado de um convidado como passo do funil, com rótulo e cor. */
+function inviteState(f: { status: string | null; counts: boolean }): { label: string; cls: string } {
+  if (f.counts) return { label: 'A pagar ✓', cls: 'bg-emerald-100 text-emerald-700' };
+  switch (f.status) {
     case 'active':
-      return 'a pagar';
+      return { label: 'A pagar', cls: 'bg-emerald-100 text-emerald-700' };
     case 'trialing':
-      return 'em trial';
+      return { label: 'Em trial', cls: 'bg-blue-100 text-blue-700' };
     case 'past_due':
-      return 'pagamento em falta';
+      return { label: 'Pagamento em falta', cls: 'bg-amber-100 text-amber-700' };
     case 'canceled':
-      return 'cancelou';
+      return { label: 'Cancelou', cls: 'bg-slate-200 text-slate-500' };
     default:
-      return '—';
+      return { label: 'Registou-se', cls: 'bg-slate-100 text-slate-500' };
   }
 }
 
@@ -52,9 +57,6 @@ export function ReferralsPage() {
   const progress = Math.min(100, (activePaying / threshold) * 100);
 
   const waLink = `https://wa.me/?text=${encodeURIComponent(`${SHARE_MESSAGE}\n${link}`)}`;
-  const mailLink = `mailto:?subject=${encodeURIComponent(
-    'Convite para o EvidentiaDental',
-  )}&body=${encodeURIComponent(`${SHARE_MESSAGE}\n\n${link}`)}`;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -123,22 +125,14 @@ export function ReferralsPage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
-          <a
-            href={waLink}
-            target="_blank"
-            rel="noreferrer"
-            className="flex-1 text-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition"
-          >
-            Enviar por WhatsApp
-          </a>
-          <a
-            href={mailLink}
-            className="flex-1 text-center px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition"
-          >
-            Enviar por email
-          </a>
-        </div>
+        <a
+          href={waLink}
+          target="_blank"
+          rel="noreferrer"
+          className="block text-center px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition"
+        >
+          Enviar por WhatsApp
+        </a>
       </div>
 
       {/* Lista de colegas */}
@@ -152,18 +146,15 @@ export function ReferralsPage() {
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {friends.map((f, i) => (
-              <li key={i} className="flex items-center justify-between py-2.5">
-                <span className="text-slate-800">{f.name || 'Colega'}</span>
-                <span
-                  className={`text-xs px-2 py-1 rounded-full ${
-                    f.counts ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                  }`}
-                >
-                  {f.counts ? 'conta ✓' : statusLabel(f.status)}
-                </span>
-              </li>
-            ))}
+            {friends.map((f, i) => {
+              const st = inviteState(f);
+              return (
+                <li key={i} className="flex items-center justify-between py-2.5">
+                  <span className="text-slate-800">{f.name || 'Colega'}</span>
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${st.cls}`}>{st.label}</span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
